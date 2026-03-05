@@ -338,9 +338,66 @@ class GameApp {
     const unlockAudio = () => this.audio.unlock()
     window.addEventListener('pointerdown', unlockAudio, { once: true })
     window.addEventListener('keydown', unlockAudio, { once: true })
+    this.updateAudioButtons()
+    this.updateVolumeUI()
     
     // Setup dashboard
     this.setupDashboard()
+  }
+
+  updateAudioButtons() {
+    const sfxBtn = document.getElementById('btn-sfx-toggle')
+    const musicBtn = document.getElementById('btn-music-toggle')
+    const sfxMuted = this.audio.isSfxMuted()
+    const musicMuted = this.audio.isMusicMuted()
+
+    if (sfxBtn) {
+      sfxBtn.textContent = sfxMuted ? 'SFX OFF' : 'SFX ON'
+      sfxBtn.style.color = sfxMuted ? '#ff7a7a' : '#7ae7ff'
+      sfxBtn.style.borderColor = sfxMuted ? '#8a4040' : '#2f5f80'
+    }
+    if (musicBtn) {
+      musicBtn.textContent = musicMuted ? 'MUSIC OFF' : 'MUSIC ON'
+      musicBtn.style.color = musicMuted ? '#ff7a7a' : '#7ae7ff'
+      musicBtn.style.borderColor = musicMuted ? '#8a4040' : '#2f5f80'
+    }
+  }
+
+  updateVolumeUI() {
+    const sfxSlider = document.getElementById('sfx-volume')
+    const musicSlider = document.getElementById('music-volume')
+    const sfxValue = document.getElementById('sfx-volume-value')
+    const musicValue = document.getElementById('music-volume-value')
+
+    const sfxPct = Math.round(this.audio.getSfxVolume() * 100)
+    const musicPct = Math.round(this.audio.getMusicVolume() * 100)
+
+    if (sfxSlider) sfxSlider.value = String(sfxPct)
+    if (musicSlider) musicSlider.value = String(musicPct)
+    if (sfxValue) sfxValue.textContent = `${sfxPct}%`
+    if (musicValue) musicValue.textContent = `${musicPct}%`
+  }
+
+  toggleSfxMute() {
+    this.audio.setSfxMuted(!this.audio.isSfxMuted())
+    this.updateAudioButtons()
+    this.updateVolumeUI()
+  }
+
+  toggleMusicMute() {
+    this.audio.setMusicMuted(!this.audio.isMusicMuted())
+    this.updateAudioButtons()
+    this.updateVolumeUI()
+  }
+
+  setSfxVolume(value) {
+    this.audio.setSfxVolume(Number(value) / 100)
+    this.updateVolumeUI()
+  }
+
+  setMusicVolume(value) {
+    this.audio.setMusicVolume(Number(value) / 100)
+    this.updateVolumeUI()
   }
 
   updateConnectionHUD() {
@@ -1117,10 +1174,14 @@ class GameApp {
         this.audio.playSfx('eliminated', 0.9)
       } else if (evt.type === 'shot') {
         this._emitShotFx(evt)
-        this.audio.playSfx('shot', 0.65)
+        const hitPos = this._combatEntityPos(evt.to)
+        const vol = hitPos ? this._getSfxVolumeAt(hitPos.x, hitPos.y, 220) : 0
+        if (vol > 0.02) this.audio.playSfx('shot', 0.65 * vol)
       } else if (evt.type === 'ship_destroyed') {
+        const boomPos = this._combatEntityPos(evt.ship_id)
         this._emitExplosionFx(evt.ship_id)
-        this.audio.playSfx('explosion', 0.8)
+        const vol = boomPos ? this._getSfxVolumeAt(boomPos.x, boomPos.y, 260) : 0
+        if (vol > 0.02) this.audio.playSfx('explosion', 0.8 * vol)
       } else if (evt.type === 'game_over') {
         let resolved = evt.result
         if (evt.mode === 'pvp' && evt.winner_faction_id) {
@@ -1180,6 +1241,39 @@ class GameApp {
       if (planet) return { x: planet.x, y: planet.y }
     }
     return null
+  }
+
+  _getViewBoundsWorld() {
+    if (!this.zoom || !this.width || !this.height) return null
+    return {
+      minX: (-this.panX) / this.zoom,
+      minY: (-this.panY) / this.zoom,
+      maxX: (this.width - this.panX) / this.zoom,
+      maxY: (this.height - this.panY) / this.zoom,
+    }
+  }
+
+  _getSfxVolumeAt(x, y, edgeMargin = 200) {
+    const b = this._getViewBoundsWorld()
+    if (!b) return 0
+
+    if (
+      x < b.minX - edgeMargin ||
+      x > b.maxX + edgeMargin ||
+      y < b.minY - edgeMargin ||
+      y > b.maxY + edgeMargin
+    ) {
+      return 0
+    }
+
+    const cx = (b.minX + b.maxX) * 0.5
+    const cy = (b.minY + b.maxY) * 0.5
+    const dist = Math.hypot(x - cx, y - cy)
+    const halfDiag = Math.hypot((b.maxX - b.minX) * 0.5, (b.maxY - b.minY) * 0.5)
+    if (halfDiag <= 0) return 0
+
+    const t = Math.max(0, Math.min(1, dist / (halfDiag * 1.1)))
+    return 1 - t
   }
 
   _drawCombatFx() {
@@ -1833,6 +1927,10 @@ window.joinLobby = () => window.gameApp?.joinLobby()
 window.startLobbyMatch = () => window.gameApp?.startLobbyMatch()
 window.leaveLobby = () => window.gameApp?.leaveLobby()
 window.copyLobbyCode = () => window.gameApp?.copyLobbyCode()
+window.toggleSfxMute = () => window.gameApp?.toggleSfxMute()
+window.toggleMusicMute = () => window.gameApp?.toggleMusicMute()
+window.setSfxVolume = (value) => window.gameApp?.setSfxVolume(value)
+window.setMusicVolume = (value) => window.gameApp?.setMusicVolume(value)
 
 // Start the game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

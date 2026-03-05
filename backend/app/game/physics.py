@@ -31,7 +31,12 @@ SWARM_GOAL_WEIGHT = 1.0
 
 
 def physics_tick(ships: list[Ship], planets: list[Planet], planet_map: dict) -> None:
-    moving = [s for s in ships if s.state in ("moving", "retreating")]
+    # Pre-partition moving/retreating ships by owner for O(n) swarm instead of O(n²)
+    moving_by_owner: dict[str, list[Ship]] = {}
+    for s in ships:
+        if s.state in ("moving", "retreating"):
+            moving_by_owner.setdefault(s.owner, []).append(s)
+
     for ship in ships:
         if ship.state == "orbiting":
             continue    # kinematics handled elsewhere
@@ -39,7 +44,8 @@ def physics_tick(ships: list[Ship], planets: list[Planet], planet_map: dict) -> 
         if ship.state == "idle":
             _tick_idle(ship, planets, planet_map, ships)
         elif ship.state in ("moving", "retreating"):
-            _tick_moving(ship, planets, planet_map, moving, ships)
+            _tick_moving(ship, planets, planet_map,
+                         moving_by_owner.get(ship.owner), ships)
         # "attacking" movement handled in combat.py (needs ship_map)
 
 
@@ -103,8 +109,7 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
         for other in moving_ships:
             if other.id == ship.id:
                 continue
-            if other.owner != ship.owner:
-                continue
+            # owner filter removed: moving_ships already pre-filtered by owner
 
             odx = ship.x - other.x
             ody = ship.y - other.y
@@ -179,15 +184,19 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
 
 def _gravity(ship: Ship, planets: list[Planet]) -> tuple[float, float]:
     ax, ay = 0.0, 0.0
+    _sqrt = math.sqrt
+    _inf_factor_sq = INFLUENCE_RADIUS_FACTOR * INFLUENCE_RADIUS_FACTOR
+    ship_x, ship_y = ship.x, ship.y
     for planet in planets:
-        dx = planet.x - ship.x
-        dy = planet.y - ship.y
+        dx = planet.x - ship_x
+        dy = planet.y - ship_y
         dist_sq = dx * dx + dy * dy
         if dist_sq < 1:
             continue
-        dist = math.sqrt(dist_sq)
-        influence_r = planet.radius * INFLUENCE_RADIUS_FACTOR
-        if dist < influence_r:
+        # Squared-distance check avoids sqrt for distant planets
+        inf_r_sq = planet.radius * planet.radius * _inf_factor_sq
+        if dist_sq < inf_r_sq:
+            dist  = _sqrt(dist_sq)
             mass  = planet.radius * 50.0
             force = G * mass / dist_sq
             ax   += force * (dx / dist)
@@ -223,12 +232,14 @@ def _handle_arrival(ship: Ship, planet_map: dict, ships: list[Ship]) -> None:
 
 def _check_planet_proximity(ship: Ship, planets: list[Planet], ships: list[Ship]) -> None:
     """Capture idle/drifting ships that wander onto a planet surface."""
+    # Precompute constant offset outside the loop
+    max_ring_offset = ORBIT_OFFSET + (max(1, ORBIT_RING_LEVELS) - 1) * ORBIT_RING_STEP
+    ship_x, ship_y = ship.x, ship.y
     for planet in planets:
-        dx   = planet.x - ship.x
-        dy   = planet.y - ship.y
-        dist = math.sqrt(dx * dx + dy * dy)
-        max_ring_offset = ORBIT_OFFSET + (max(1, ORBIT_RING_LEVELS) - 1) * ORBIT_RING_STEP
-        if dist < planet.radius + max_ring_offset + ARRIVAL_THRESHOLD:
+        dx   = planet.x - ship_x
+        dy   = planet.y - ship_y
+        threshold = planet.radius + max_ring_offset + ARRIVAL_THRESHOLD
+        if dx * dx + dy * dy < threshold * threshold:
             orbiting_here = sum(
                 1 for s in ships
                 if s.id != ship.id and s.state == "orbiting" and s.target_planet == planet.id

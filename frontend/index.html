@@ -652,6 +652,20 @@
             <div style="color: #64748b; font-size: 11px; display:flex; gap:12px;">
                 <span>Tick <span id="hud-tick">--</span></span>
                 <span style="color:#f59e0b">FPS <span id="fps-display">--</span></span>
+                <button id="btn-sfx-toggle" onclick="window.toggleSfxMute?.()" style="padding:2px 8px;font-size:10px;min-width:54px;">SFX ON</button>
+                <button id="btn-music-toggle" onclick="window.toggleMusicMute?.()" style="padding:2px 8px;font-size:10px;min-width:70px;">MUSIC ON</button>
+            </div>
+            <div style="margin-top:6px;color:#7d95a6;font-size:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+                <span style="display:flex;align-items:center;gap:5px;">
+                    SFX VOL
+                    <input id="sfx-volume" type="range" min="0" max="100" value="75" oninput="window.setSfxVolume?.(this.value)" style="width:80px;" />
+                    <span id="sfx-volume-value">75%</span>
+                </span>
+                <span style="display:flex;align-items:center;gap:5px;">
+                    MUSIC VOL
+                    <input id="music-volume" type="range" min="0" max="100" value="45" oninput="window.setMusicVolume?.(this.value)" style="width:80px;" />
+                    <span id="music-volume-value">45%</span>
+                </span>
             </div>
         </div>
 

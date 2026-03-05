@@ -491,6 +491,8 @@ async def game_loop(game_id: str) -> None:
         physics_tick(state.ships, state.planets, planet_map)
         simulation_tick(state, planet_map, ship_map, faction_map)
         combat_tick(state, planet_map, ship_map, faction_map)
+
+        # AI runs infrequently; skip map rebuilds when not needed
         ai_tick(state, planet_map, ship_map, faction_map)
 
         delta = serialize_delta(state)
@@ -503,8 +505,10 @@ async def game_loop(game_id: str) -> None:
 
         active_connections = list(connections.get(game_id, []))
         if active_connections:
+            # Encode JSON once; send pre-encoded text to all clients
+            payload_text = json.dumps(payload)
             results = await asyncio.gather(
-                *(ws.send_json(payload) for ws in active_connections),
+                *(ws.send_text(payload_text) for ws in active_connections),
                 return_exceptions=True,
             )
             for ws, result in zip(active_connections, results):

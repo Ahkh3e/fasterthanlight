@@ -185,10 +185,11 @@ def _ai_defensive(
     if not threatened:
         return
 
+    tx, ty = threatened.x, threatened.y
     attackers = [
         s for s in state.ships
         if s.owner != faction.id and s.owner != "neutral"
-        and math.dist((s.x, s.y), (threatened.x, threatened.y)) < 500
+        and (s.x - tx) ** 2 + (s.y - ty) ** 2 < 250000
     ]
     if not attackers:
         return
@@ -245,16 +246,18 @@ def _find_easy_target(
     faction: Faction, state: GameState, idle_ships: list[Ship]
 ) -> Planet | None:
     our_power = sum(SHIP_STATS[s.type]["damage"] for s in idle_ships)
+    conquest_r2_sq = (CONQUEST_RADIUS * 2) ** 2
 
     for planet in state.planets:
         if planet.owner == faction.id:
             continue
 
+        px, py = planet.x, planet.y
         def_power = sum(
             SHIP_STATS[s.type]["damage"]
             for s in state.ships
             if s.owner == planet.owner
-            and math.dist((s.x, s.y), (planet.x, planet.y)) < CONQUEST_RADIUS * 2
+            and (s.x - px) ** 2 + (s.y - py) ** 2 < conquest_r2_sq
         ) + planet.defense * 200
 
         if def_power == 0 or our_power > def_power * 1.5:
@@ -264,12 +267,16 @@ def _find_easy_target(
 
 
 def _find_threatened_planet(faction: Faction, state: GameState) -> Planet | None:
+    threat_range_sq = 500 * 500
     for planet in state.planets:
         if planet.owner != faction.id:
             continue
+        px, py = planet.x, planet.y
         for ship in state.ships:
             if ship.owner != faction.id and ship.owner != "neutral":
-                if math.dist((ship.x, ship.y), (planet.x, planet.y)) < 500:
+                dx = ship.x - px
+                dy = ship.y - py
+                if dx * dx + dy * dy < threat_range_sq:
                     return planet
     return None
 

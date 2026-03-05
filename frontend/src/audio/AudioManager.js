@@ -4,6 +4,8 @@ export default class AudioManager {
   constructor() {
     this.unlocked = false
     this.muted = false
+    this.musicMuted = false
+    this.sfxMuted = false
     this.musicVolume = 0.45
     this.sfxVolume = 0.75
     this.currentMusic = null
@@ -45,7 +47,7 @@ export default class AudioManager {
 
   playMusic(name) {
     if (!name || this.currentMusicName === name) return
-    if (this.muted) return
+    if (this.muted || this.musicMuted) return
     if (!this.unlocked) {
       this.pendingMusic = name
       return
@@ -74,7 +76,7 @@ export default class AudioManager {
   }
 
   playSfx(name, volumeMul = 1) {
-    if (!name || this.muted || !this.unlocked) return
+    if (!name || this.muted || this.sfxMuted || !this.unlocked) return
     const def = this.sfxDefs[name]
     if (!def) return
 
@@ -106,6 +108,52 @@ export default class AudioManager {
     this._saveSettings()
   }
 
+  setMusicMuted(value) {
+    this.musicMuted = !!value
+    if (this.musicMuted) {
+      this.stopMusic()
+    } else if (this.currentMusicName) {
+      this.playMusic(this.currentMusicName)
+    }
+    this._saveSettings()
+  }
+
+  setSfxMuted(value) {
+    this.sfxMuted = !!value
+    this._saveSettings()
+  }
+
+  setMusicVolume(value) {
+    const v = Number(value)
+    if (Number.isNaN(v)) return
+    this.musicVolume = Math.max(0, Math.min(1, v))
+    this._applyMusicVolume()
+    this._saveSettings()
+  }
+
+  setSfxVolume(value) {
+    const v = Number(value)
+    if (Number.isNaN(v)) return
+    this.sfxVolume = Math.max(0, Math.min(1, v))
+    this._saveSettings()
+  }
+
+  getMusicVolume() {
+    return this.musicVolume
+  }
+
+  getSfxVolume() {
+    return this.sfxVolume
+  }
+
+  isMusicMuted() {
+    return this.muted || this.musicMuted
+  }
+
+  isSfxMuted() {
+    return this.muted || this.sfxMuted
+  }
+
   _createMusic(path) {
     const audio = new Audio(path)
     audio.loop = true
@@ -115,7 +163,7 @@ export default class AudioManager {
 
   _applyMusicVolume() {
     Object.values(this.music).forEach(track => {
-      track.volume = this.muted ? 0 : this.musicVolume
+      track.volume = (this.muted || this.musicMuted) ? 0 : this.musicVolume
     })
   }
 
@@ -123,6 +171,8 @@ export default class AudioManager {
     try {
       const data = JSON.parse(localStorage.getItem(AUDIO_SETTINGS_KEY) || '{}')
       if (typeof data.muted === 'boolean') this.muted = data.muted
+      if (typeof data.musicMuted === 'boolean') this.musicMuted = data.musicMuted
+      if (typeof data.sfxMuted === 'boolean') this.sfxMuted = data.sfxMuted
       if (typeof data.musicVolume === 'number') this.musicVolume = data.musicVolume
       if (typeof data.sfxVolume === 'number') this.sfxVolume = data.sfxVolume
     } catch {}
@@ -131,6 +181,8 @@ export default class AudioManager {
   _saveSettings() {
     localStorage.setItem(AUDIO_SETTINGS_KEY, JSON.stringify({
       muted: this.muted,
+      musicMuted: this.musicMuted,
+      sfxMuted: this.sfxMuted,
       musicVolume: this.musicVolume,
       sfxVolume: this.sfxVolume,
     }))

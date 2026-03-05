@@ -65,32 +65,37 @@ def _update_engagements(ships: list[Ship], ship_map: dict) -> None:
     Moving ships acquire a combat target but keep moving toward their destination
     (return fire without interrupting the movement order).
     """
+    _attack_range = SHIP_ATTACK_RANGE
     for ship in ships:
-        if ship.state not in ("orbiting", "idle", "moving"):
+        ship_state = ship.state
+        if ship_state not in ("orbiting", "idle", "moving"):
             continue   # don't interrupt retreating/attacking ships
-        attack_range = SHIP_ATTACK_RANGE.get(ship.type, 0)
+        attack_range = _attack_range.get(ship.type, 0)
         if attack_range == 0:
             continue
 
         # Moving ships: skip re-targeting if already tracking a live enemy
-        if ship.state == "moving" and ship.target_ship:
+        if ship_state == "moving" and ship.target_ship:
             t = ship_map.get(ship.target_ship)
             if t and t.health > 0:
                 continue
 
+        attack_range_sq = attack_range * attack_range
+        ship_x, ship_y = ship.x, ship.y
+        ship_owner = ship.owner
+
         for other in ships:
-            if other.id == ship.id or other.owner == ship.owner:
+            if other.owner == ship_owner or other.id == ship.id:
                 continue
             if other.state == "retreating":
                 continue   # don't chase retreating ships
 
-            dx   = other.x - ship.x
-            dy   = other.y - ship.y
-            dist = math.sqrt(dx * dx + dy * dy)
+            dx = other.x - ship_x
+            dy = other.y - ship_y
 
-            if dist <= attack_range:
+            if dx * dx + dy * dy <= attack_range_sq:
                 ship.target_ship = other.id
-                if ship.state != "moving":
+                if ship_state != "moving":
                     # Full combat mode: stop and fight
                     ship.state       = "attacking"
                     ship.target_planet = None
@@ -116,11 +121,13 @@ def _move_attackers(ships: list[Ship], ship_map: dict) -> None:
 
         dx   = target.x - ship.x
         dy   = target.y - ship.y
-        dist = math.sqrt(dx * dx + dy * dy)
+        dist_sq = dx * dx + dy * dy
 
         attack_range = SHIP_ATTACK_RANGE.get(ship.type, 150)
+        engage_dist_sq = (attack_range * 0.8) ** 2
 
-        if dist > attack_range * 0.8 and dist > 1:
+        if dist_sq > engage_dist_sq and dist_sq > 1:
+            dist    = math.sqrt(dist_sq)
             speed   = SHIP_STATS[ship.type]["speed"] * ship.energy_level
             ship.vx = speed * (dx / dist)
             ship.vy = speed * (dy / dist)
@@ -191,50 +198,62 @@ def _defense_platforms_fire(state: GameState, planet_map: dict) -> None:
     if state.tick % DEFENSE_PLATFORM_TICKS != 0:
         return
 
+    all_ships = state.ships
+    plat_range_sq = DEFENSE_PLATFORM_RANGE * DEFENSE_PLATFORM_RANGE
+    cannon_range_sq = ORBITAL_CANNON_RANGE * ORBITAL_CANNON_RANGE
+
     for planet in state.planets:
         if planet.owner is None:
             continue
-        platforms = planet.buildings.count("defense_platform")
-        cannons   = planet.buildings.count("orbital_cannon")
+        buildings = planet.buildings
+        platforms = buildings.count("defense_platform")
+        cannons   = buildings.count("orbital_cannon")
         if platforms == 0 and cannons == 0:
             continue
 
-        # Platforms fire at enemies within their range; cannons have longer range
-        max_range = ORBITAL_CANNON_RANGE if cannons > 0 else DEFENSE_PLATFORM_RANGE
+        max_range_sq = cannon_range_sq if cannons > 0 else plat_range_sq
+        px, py = planet.x, planet.y
+        planet_owner = planet.owner
 
-        attackers = [
-            s for s in state.ships
-            if s.owner != planet.owner
-            and math.sqrt((s.x - planet.x) ** 2 + (s.y - planet.y) ** 2) < max_range
-        ]
-        if not attackers:
+        # Single pass: find nearest enemy within range (replaces list comp + min)
+        best_target = None
+        best_dist_sq = max_range_sq
+
+        for s in all_ships:
+            if s.owner == planet_owner:
+                continue
+            dx = s.x - px
+            dy = s.y - py
+            d2 = dx * dx + dy * dy
+            if d2 < best_dist_sq:
+                best_dist_sq = d2
+                best_target = s
+
+        if best_target is None:
             continue
 
-        target     = min(attackers, key=lambda s: math.sqrt((s.x - planet.x) ** 2 + (s.y - planet.y) ** 2))
-        dist_sq    = (target.x - planet.x) ** 2 + (target.y - planet.y) ** 2
-
         # Platforms only fire if target is within platform range
-        plat_dmg   = platforms * DEFENSE_PLATFORM_DAMAGE if dist_sq < DEFENSE_PLATFORM_RANGE ** 2 else 0
+        plat_dmg   = platforms * DEFENSE_PLATFORM_DAMAGE if best_dist_sq < plat_range_sq else 0
         cannon_dmg = cannons   * ORBITAL_CANNON_DAMAGE
         total_dmg  = plat_dmg + cannon_dmg
 
         if total_dmg == 0:
             continue
 
-        target.health = round(target.health - total_dmg, 2)
+        best_target.health = round(best_target.health - total_dmg, 2)
 
         state.tick_events.append({
             "type":   "shot",
             "from":   f"platform-{planet.id}",
-            "to":     target.id,
+            "to":     best_target.id,
             "damage": total_dmg,
         })
 
-        if target.health <= 0:
-            target.health = 0
+        if best_target.health <= 0:
+            best_target.health = 0
             state.tick_events.append({
                 "type":      "ship_destroyed",
-                "ship_id":   target.id,
+                "ship_id":   best_target.id,
                 "killer_id": f"platform-{planet.id}",
             })
 
@@ -242,6 +261,13 @@ def _defense_platforms_fire(state: GameState, planet_map: dict) -> None:
 # ── Retreat ───────────────────────────────────────────────────────────────────
 
 def _handle_retreats(ships: list[Ship], planets: list[Planet]) -> None:
+    retreat_range_sq = RETREAT_SEARCH_RANGE * RETREAT_SEARCH_RANGE
+    # Pre-group friendly planets by owner (O(planets) once)
+    planets_by_owner: dict[str | None, list[Planet]] = {}
+    for p in planets:
+        if p.owner is not None:
+            planets_by_owner.setdefault(p.owner, []).append(p)
+
     for ship in ships:
         if ship.state in ("retreating", "orbiting") or ship.health <= 0:
             continue
@@ -252,12 +278,22 @@ def _handle_retreats(ships: list[Ship], planets: list[Planet]) -> None:
         if hp_ratio > RETREAT_HP_THRESHOLD:
             continue
 
-        friendly = [p for p in planets if p.owner == ship.owner]
+        friendly = planets_by_owner.get(ship.owner)
         if not friendly:
             continue   # no safe harbour — keep fighting
 
-        nearest = min(friendly, key=lambda p: math.dist((ship.x, ship.y), (p.x, p.y)))
-        if math.dist((ship.x, ship.y), (nearest.x, nearest.y)) > RETREAT_SEARCH_RANGE:
+        ship_x, ship_y = ship.x, ship.y
+        nearest = None
+        nearest_dist_sq = float('inf')
+        for p in friendly:
+            dx = ship_x - p.x
+            dy = ship_y - p.y
+            d2 = dx * dx + dy * dy
+            if d2 < nearest_dist_sq:
+                nearest_dist_sq = d2
+                nearest = p
+
+        if nearest_dist_sq > retreat_range_sq:
             continue   # too far — keep fighting
 
         ship.state        = "retreating"
@@ -273,29 +309,52 @@ def _handle_retreats(ships: list[Ship], planets: list[Planet]) -> None:
 def _check_conquest(
     state: GameState, planet_map: dict, faction_map: dict
 ) -> None:
-    for planet in state.planets:
-        # Find attacker factions within conquest radius
-        attacker_factions: set[str] = set()
-        for ship in state.ships:
-            if ship.owner == planet.owner or ship.owner == "neutral":
-                continue
-            # Ships orbiting a different planet don't count (prevents home-planet
-            # garrison from auto-conquering nearby neutral planets)
-            if ship.state == "orbiting" and ship.target_planet and ship.target_planet != planet.id:
-                continue
-            if math.dist((ship.x, ship.y), (planet.x, planet.y)) < CONQUEST_RADIUS:
-                attacker_factions.add(ship.owner)
+    conquest_r_sq = CONQUEST_RADIUS * CONQUEST_RADIUS
+    all_ships = state.ships
+    _stats = SHIP_STATS
 
-        if not attacker_factions:
+    for planet in state.planets:
+        px, py = planet.x, planet.y
+        planet_id = planet.id
+        planet_owner = planet.owner
+
+        # Single pass: accumulate per-faction power near this planet
+        faction_power: dict[str, float] = {}
+        for ship in all_ships:
+            if ship.owner == "neutral":
+                continue
+            if ship.state == "orbiting" and ship.target_planet and ship.target_planet != planet_id:
+                continue
+            dx = ship.x - px
+            dy = ship.y - py
+            if dx * dx + dy * dy >= conquest_r_sq:
+                continue
+            hp_ratio = ship.health / ship.max_health if ship.max_health > 0 else 0.0
+            power = hp_ratio * _stats.get(ship.type, {}).get("damage", 0)
+            faction_power[ship.owner] = faction_power.get(ship.owner, 0.0) + power
+
+        # Separate defense (planet owner) from attackers
+        defense_power = faction_power.pop(planet_owner, 0.0)
+
+        # Check if any attackers remain
+        if not faction_power:
             if planet.conquest_checks > 0:
                 planet.conquest_checks = 0
             continue
 
+        # Add structural defense
+        level_bonus   = (planet.level - 1) * LEVEL_DEFENSE_BONUS
+        effective_def = planet.defense + level_bonus
+        platforms     = planet.buildings.count("defense_platform")
+        cannons       = planet.buildings.count("orbital_cannon")
+        defense_power += effective_def * 5 + platforms * 25 + cannons * 50
+
+        # Find the dominant attacker
         best_attacker  = None
         best_dominance = 0.0
-
-        for att in attacker_factions:
-            dom = _compute_dominance(planet, att, state.ships)
+        for att, att_power in faction_power.items():
+            total = att_power + defense_power
+            dom = att_power / total if total > 0 else 0.0
             if dom > best_dominance:
                 best_dominance = dom
                 best_attacker  = att
@@ -306,34 +365,6 @@ def _check_conquest(
                 _capture_planet(planet, best_attacker, state, faction_map)
         else:
             planet.conquest_checks = 0
-
-
-def _compute_dominance(planet: Planet, attacking_faction: str, ships: list[Ship]) -> float:
-    attack_power  = 0.0
-    defense_power = 0.0
-
-    for ship in ships:
-        if math.dist((ship.x, ship.y), (planet.x, planet.y)) >= CONQUEST_RADIUS:
-            continue
-        # Ships orbiting a different planet don't count
-        if ship.state == "orbiting" and ship.target_planet and ship.target_planet != planet.id:
-            continue
-        hp_ratio = ship.health / ship.max_health if ship.max_health > 0 else 0.0
-        power    = hp_ratio * SHIP_STATS.get(ship.type, {}).get("damage", 0)
-        if ship.owner == attacking_faction:
-            attack_power  += power
-        elif ship.owner == planet.owner:
-            defense_power += power
-
-    # Structures and level bonuses add to defensive power
-    level_bonus     = (planet.level - 1) * LEVEL_DEFENSE_BONUS
-    effective_def   = planet.defense + level_bonus
-    platforms       = planet.buildings.count("defense_platform")
-    cannons         = planet.buildings.count("orbital_cannon")
-    defense_power  += effective_def * 5 + platforms * 25 + cannons * 50
-
-    total = attack_power + defense_power
-    return 0.0 if total == 0 else attack_power / total
 
 
 def _capture_planet(

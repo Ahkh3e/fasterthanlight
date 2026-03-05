@@ -488,20 +488,20 @@ export default class GalaxyScene extends Phaser.Scene {
 
     // ── Header ───────────────────────────────────────────────────────────────
     const title = this.add.text(PW / 2, 14, explored ? planet.name : '???', {
-      fontSize: '18px', color: '#00ffff', fontFamily: 'monospace', fontStyle: 'bold',
+      fontSize: '20px', color: '#00ffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0)
     dash.add(title)
 
     const ownerText = this.add.text(16, 16, ownerName, {
-      fontSize: '12px', color: ownerHex, fontFamily: 'monospace',
+      fontSize: '13px', color: ownerHex, fontFamily: 'monospace',
     }).setOrigin(0, 0)
     dash.add(ownerText)
 
     const closeBtn = this.add.text(PW - 14, 10, '×', {
-      fontSize: '22px', color: '#445566', fontFamily: 'monospace',
+      fontSize: '24px', color: '#667788', fontFamily: 'monospace',
     }).setOrigin(1, 0).setInteractive({ useHandCursor: true })
     closeBtn.on('pointerover', () => closeBtn.setColor('#ff4444'))
-    closeBtn.on('pointerout',  () => closeBtn.setColor('#445566'))
+    closeBtn.on('pointerout',  () => closeBtn.setColor('#667788'))
     closeBtn.on('pointerdown', () => this._closePlanetDashboard())
     dash.add(closeBtn)
 
@@ -517,7 +517,7 @@ export default class GalaxyScene extends Phaser.Scene {
         ? `Territory of ${ownerName}\n\nUnexplored — send ships to reveal details`
         : 'Uncharted System\n\nSend ships to explore'
       dash.add(this.add.text(PW / 2, PH / 2, msg, {
-        fontSize: '14px', color: '#445566', fontFamily: 'monospace', align: 'center', lineSpacing: 8,
+        fontSize: '15px', color: '#667788', fontFamily: 'monospace', align: 'center', lineSpacing: 8,
       }).setOrigin(0.5, 0.5))
       this._planetDashboard = dash
       return
@@ -559,11 +559,11 @@ export default class GalaxyScene extends Phaser.Scene {
       ['Orbiting',    `${orbitingCount} ship${orbitingCount !== 1 ? 's' : ''}`],
     ]
     leftStats.forEach(([lbl, val], i) => {
-      const ly = visY + VR + 22 + i * 18
+      const ly = visY + VR + 22 + i * 20
       dash.add(this.add.text(14, ly, lbl,
-        { fontSize: '11px', color: '#3d5666', fontFamily: 'monospace' }))
+        { fontSize: '12px', color: '#6a8899', fontFamily: 'monospace' }))
       dash.add(this.add.text(LW - 8, ly, val,
-        { fontSize: '11px', color: '#9ab0be', fontFamily: 'monospace' }).setOrigin(1, 0))
+        { fontSize: '12px', color: '#c0d4e0', fontFamily: 'monospace' }).setOrigin(1, 0))
     })
 
     // Vertical divider
@@ -578,16 +578,16 @@ export default class GalaxyScene extends Phaser.Scene {
 
     const section = (label) => {
       const sg = this.add.graphics()
-      sg.lineStyle(1, 0x0f2535); sg.lineBetween(RX, ry + 14, RX + RW - 8, ry + 14)
+      sg.lineStyle(1, 0x1a5070); sg.lineBetween(RX, ry + 15, RX + RW - 8, ry + 15)
       dash.add(sg)
-      dash.add(this.add.text(RX, ry, label, { fontSize: '10px', color: '#1a5070', fontFamily: 'monospace' }))
-      ry += 22
+      dash.add(this.add.text(RX, ry, label, { fontSize: '11px', color: '#4a8aaa', fontFamily: 'monospace', fontStyle: 'bold' }))
+      ry += 24
     }
 
-    const row = (key, val, vc = '#9ab0be') => {
-      dash.add(this.add.text(RX,       ry, key, { fontSize: '11px', color: '#3d5870', fontFamily: 'monospace' }))
-      dash.add(this.add.text(RX + 130, ry, val, { fontSize: '11px', color: vc,        fontFamily: 'monospace' }))
-      ry += 17
+    const row = (key, val, vc = '#c0d4e0') => {
+      dash.add(this.add.text(RX,       ry, key, { fontSize: '12px', color: '#6a8899', fontFamily: 'monospace' }))
+      dash.add(this.add.text(RX + 130, ry, val, { fontSize: '12px', color: vc,        fontFamily: 'monospace' }))
+      ry += 19
     }
 
     // Buildings
@@ -600,14 +600,14 @@ export default class GalaxyScene extends Phaser.Scene {
 
     section('BUILDINGS')
     if (planet.buildings.length === 0) {
-      dash.add(this.add.text(RX, ry, 'None constructed', { fontSize: '11px', color: '#1e2e38', fontFamily: 'monospace' }))
-      ry += 17
+      dash.add(this.add.text(RX, ry, 'None constructed', { fontSize: '12px', color: '#3a5565', fontFamily: 'monospace' }))
+      ry += 19
     } else {
       for (const b of planet.buildings) {
         const info = BLDG_INFO[b] ?? { label: b, desc: '' }
-        dash.add(this.add.text(RX,       ry, `● ${info.label}`, { fontSize: '11px', color: '#9ab0be', fontFamily: 'monospace' }))
-        dash.add(this.add.text(RX + 155, ry, info.desc,          { fontSize: '10px', color: '#2a4455', fontFamily: 'monospace' }))
-        ry += 17
+        dash.add(this.add.text(RX,       ry, `● ${info.label}`, { fontSize: '12px', color: '#c0d4e0', fontFamily: 'monospace' }))
+        dash.add(this.add.text(RX + 155, ry, info.desc,          { fontSize: '11px', color: '#5a7a8a', fontFamily: 'monospace' }))
+        ry += 19
       }
     }
     ry += 6
@@ -616,8 +616,8 @@ export default class GalaxyScene extends Phaser.Scene {
     const queue = planet.build_queue ?? []
     section(`BUILD QUEUE  (${queue.length}/2)`)
     if (queue.length === 0) {
-      dash.add(this.add.text(RX, ry, 'Empty', { fontSize: '11px', color: '#1e2e38', fontFamily: 'monospace' }))
-      ry += 17
+      dash.add(this.add.text(RX, ry, 'Empty', { fontSize: '12px', color: '#3a5565', fontFamily: 'monospace' }))
+      ry += 19
     } else {
       for (const item of queue) {
         const name = item.name ?? item.ship_type ?? '?'
@@ -625,8 +625,8 @@ export default class GalaxyScene extends Phaser.Scene {
         const pct  = Math.max(0, Math.round((1 - item.ticks_remaining / 400) * 12))
         const bar  = `[${'█'.repeat(pct)}${'░'.repeat(12 - pct)}]`
         dash.add(this.add.text(RX, ry, `● ${name.padEnd(10)} ${secs}s  ${bar}`,
-          { fontSize: '11px', color: '#7799aa', fontFamily: 'monospace' }))
-        ry += 17
+          { fontSize: '12px', color: '#8db0c4', fontFamily: 'monospace' }))
+        ry += 19
       }
     }
     ry += 6
@@ -650,9 +650,9 @@ export default class GalaxyScene extends Phaser.Scene {
       ]
 
       const makeBtn = (label, canBuild, onClick) => {
-        const col = canBuild ? '#7a9ab0' : '#1e2e38'
+        const col = canBuild ? '#8db8d0' : '#3a5060'
         const btn = this.add.text(0, 0, `[${label}]`, {
-          fontSize: '11px', color: col, fontFamily: 'monospace',
+          fontSize: '12px', color: col, fontFamily: 'monospace',
           backgroundColor: '#080f18', padding: { x: 5, y: 3 },
         })
         if (canBuild) {

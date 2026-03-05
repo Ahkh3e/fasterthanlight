@@ -81,17 +81,24 @@ def _update_orbits(ships: list[Ship], planet_map: dict, tick: int) -> None:
 
 def _update_sensors(ships: list[Ship], planets: list[Planet]) -> None:
     """Any ship within its sensor range of a planet reveals that planet to its faction."""
+    _stats = SHIP_STATS
     for ship in ships:
-        sensor_sq = SHIP_STATS.get(ship.type, {}).get("sensor", 0) ** 2
-        if sensor_sq == 0:
+        stats = _stats.get(ship.type)
+        if stats is None:
             continue
+        sensor = stats.get("sensor", 0)
+        if sensor == 0:
+            continue
+        sensor_sq = sensor * sensor
+        ship_owner = ship.owner
+        ship_x, ship_y = ship.x, ship.y
         for planet in planets:
-            if ship.owner in planet.explored_by:
+            if ship_owner in planet.explored_by:
                 continue
-            dx = planet.x - ship.x
-            dy = planet.y - ship.y
+            dx = planet.x - ship_x
+            dy = planet.y - ship_y
             if dx * dx + dy * dy <= sensor_sq:
-                planet.explored_by.append(ship.owner)
+                planet.explored_by.append(ship_owner)
 
 
 # ── Fuel recovery ──────────────────────────────────────────────────────────────
@@ -179,7 +186,9 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
     tier   = faction.tech_tier if faction else 1
     bonus  = TECH_BONUSES.get(tier, TECH_BONUSES[1])
     hp     = round(float(stats["hp"]) * bonus["hp"], 1)
-    orbiting_here = sum(1 for s in state.ships if s.state == "orbiting" and s.target_planet == planet.id)
+    # Use planet.ships length (maintained by _recompute_planet_ships) instead
+    # of iterating all ships to count orbiting at this planet
+    orbiting_here = len(planet.ships)
     orbit_r, angle = orbit_layout_for_index(planet, orbiting_here)
     state.ship_id_counter += 1
     new_ship = Ship(
