@@ -29,6 +29,7 @@ app.add_middleware(
 )
 
 TICK_RATE = int(os.getenv("GAME_TICK_RATE", "20"))
+TICK_DIAGNOSTICS = os.getenv("GAME_TICK_DIAGNOSTICS", "0") == "1"
 SAVES_DIR = Path("saves")
 SAVES_DIR.mkdir(exist_ok=True)
 
@@ -469,31 +470,37 @@ async def game_loop(game_id: str) -> None:
         combat_tick(state, planet_map, ship_map, faction_map)
         ai_tick(state, planet_map, ship_map, faction_map)
 
-        delta             = serialize_delta(state)
-        dead_connections  = []
+        delta = serialize_delta(state)
+        payload = {
+            "type": "tick",
+            "data": delta,
+            "players_online": len(connections.get(game_id, [])),
+        }
+        dead_connections = []
 
-        for ws in connections.get(game_id, []):
-            try:
-                await ws.send_json({
-                    "type": "tick",
-                    "data": delta,
-                    "players_online": len(connections.get(game_id, [])),
-                })
-            except Exception:
-                dead_connections.append(ws)
+        active_connections = list(connections.get(game_id, []))
+        if active_connections:
+            results = await asyncio.gather(
+                *(ws.send_json(payload) for ws in active_connections),
+                return_exceptions=True,
+            )
+            for ws, result in zip(active_connections, results):
+                if isinstance(result, Exception):
+                    dead_connections.append(ws)
 
         for ws in dead_connections:
             if ws in connections.get(game_id, []):
                 connections[game_id].remove(ws)
 
         # ── Diagnostics: log actual tick rate once per second ─────────────────
-        _diag_ticks += 1
-        now = loop.time()
-        if now - _diag_last >= 1.0:
-            elapsed_ms = (now - tick_start) * 1000
-            print(f"[game {game_id}] tick rate: {_diag_ticks}/s  last tick: {elapsed_ms:.1f}ms")
-            _diag_ticks = 0
-            _diag_last  = now
+        if TICK_DIAGNOSTICS:
+            _diag_ticks += 1
+            now = loop.time()
+            if now - _diag_last >= 1.0:
+                elapsed_ms = (now - tick_start) * 1000
+                print(f"[game {game_id}] tick rate: {_diag_ticks}/s  last tick: {elapsed_ms:.1f}ms")
+                _diag_ticks = 0
+                _diag_last  = now
 
         # Sleep only for the remaining time in the tick window
         elapsed   = loop.time() - tick_start

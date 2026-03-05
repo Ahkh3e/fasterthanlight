@@ -33,6 +33,14 @@ export default class PlanetRendererCanvas {
 
     this.drawPlanetBody(p, r, explored)
 
+    if (explored) {
+      this.drawBuildingOrbitals(p, r, zoom)
+    }
+
+    if (explored) {
+      this.drawLevelUpgrades(p, r, zoom)
+    }
+
     if (p.owner) {
       this.drawOwnershipRing(p.x, p.y, r, p.owner, explored, zoom)
     }
@@ -84,6 +92,234 @@ export default class PlanetRendererCanvas {
     this.ctx.font = '10px monospace'
     this.ctx.textBaseline = 'top'
     this.ctx.fillText(`${RESOURCE_LABELS[resourceType]} ${resourceRate.toFixed(1)}`, x, y + radius + 4)
+  }
+
+  drawLevelUpgrades(planet, radius, zoom = 1) {
+    const level = Math.max(1, Math.min(5, planet.level || 1))
+    if (level <= 1) return
+
+    const x = planet.x
+    const y = planet.y
+    const ownerColor = planet.owner === this.playerFactionId
+      ? '#00ffff'
+      : (this.factionMap[planet.owner]?.colour || '#8fd7ff')
+
+    if (level >= 2) {
+      this.ctx.save()
+      this.ctx.strokeStyle = this._mix(ownerColor, '#ffffff', 0.35)
+      this.ctx.lineWidth = Math.max(1, 1.2 / zoom)
+      this.ctx.globalAlpha = 0.55
+      this.ctx.beginPath()
+      this.ctx.ellipse(x, y, radius + 3, Math.max(1, (radius + 3) * 0.45), 0, 0, Math.PI * 2)
+      this.ctx.stroke()
+      this.ctx.restore()
+    }
+
+    if (level >= 3) {
+      const stationR = radius + 7
+      const s = Math.max(2, Math.round(2.4 / zoom))
+      this.ctx.save()
+      this.ctx.fillStyle = this._mix(ownerColor, '#ffffff', 0.15)
+      this.ctx.fillRect(Math.round(x - stationR - s / 2), Math.round(y - s / 2), s, s)
+      this.ctx.fillRect(Math.round(x + stationR - s / 2), Math.round(y - s / 2), s, s)
+      this.ctx.restore()
+    }
+
+    if (level >= 4) {
+      this.ctx.save()
+      this.ctx.strokeStyle = this._mix(ownerColor, '#ffffff', 0.45)
+      this.ctx.lineWidth = Math.max(1, 1.6 / zoom)
+      this.ctx.globalAlpha = 0.4
+      this.ctx.beginPath()
+      this.ctx.arc(x, y, radius + 9, -Math.PI * 0.18, Math.PI * 1.18)
+      this.ctx.stroke()
+      this.ctx.restore()
+    }
+
+    if (level >= 5) {
+      const spikeR1 = radius + 4
+      const spikeR2 = radius + 10
+      this.ctx.save()
+      this.ctx.strokeStyle = this._mix(ownerColor, '#ffffff', 0.35)
+      this.ctx.lineWidth = Math.max(1, 1.2 / zoom)
+      this.ctx.globalAlpha = 0.65
+      for (let i = 0; i < 6; i++) {
+        const a = (Math.PI * 2 * i) / 6 - Math.PI / 2
+        const x1 = x + Math.cos(a) * spikeR1
+        const y1 = y + Math.sin(a) * spikeR1
+        const x2 = x + Math.cos(a) * spikeR2
+        const y2 = y + Math.sin(a) * spikeR2
+        this.ctx.beginPath()
+        this.ctx.moveTo(x1, y1)
+        this.ctx.lineTo(x2, y2)
+        this.ctx.stroke()
+      }
+      this.ctx.restore()
+    }
+  }
+
+  drawBuildingOrbitals(planet, radius, zoom = 1) {
+    const buildings = planet.buildings || []
+    if (!buildings.length) return
+
+    const ownerColor = planet.owner === this.playerFactionId
+      ? '#00ffff'
+      : (this.factionMap[planet.owner]?.colour || '#8fd7ff')
+
+    const now = performance.now() * 0.001
+    const defs = []
+
+    if (buildings.includes('shipyard')) {
+      defs.push({ id: 'shipyard', ring: radius + 18, speed: 0.18, color: this._mix(ownerColor, '#a8e8ff', 0.35) })
+    }
+    if (buildings.includes('defense_platform')) {
+      defs.push({ id: 'defense_platform', ring: radius + 15, speed: 0.28, color: this._mix(ownerColor, '#ffffff', 0.2) })
+    }
+    if (buildings.includes('extractor')) {
+      defs.push({ id: 'extractor', ring: radius + 14, speed: 0.34, color: '#ffd27a' })
+    }
+    if (buildings.includes('orbital_cannon')) {
+      defs.push({ id: 'orbital_cannon', ring: radius + 20, speed: 0.15, color: '#ff8f7a' })
+    }
+    if (buildings.includes('trade_hub')) {
+      defs.push({ id: 'trade_hub', ring: radius + 17, speed: 0.22, color: '#7affb2' })
+    }
+
+    defs.forEach((d) => {
+      const seed = this._seedFromText(`${planet.id}|${d.id}`)
+      const angle = (seed % 628) / 100 + now * d.speed
+      const x = planet.x + Math.cos(angle) * d.ring
+      const y = planet.y + Math.sin(angle) * d.ring
+
+      this.ctx.save()
+      this.ctx.globalAlpha = 0.98
+      this._drawOrbitalPixelModule(d.id, x, y, angle, d.color, zoom)
+
+      if (d.id === 'extractor') {
+        this.ctx.globalAlpha = 0.6
+        this.ctx.strokeStyle = '#ffd27a'
+        this.ctx.lineWidth = Math.max(1, 1.5 / zoom)
+        this.ctx.beginPath()
+        this.ctx.moveTo(x, y)
+        this.ctx.lineTo(planet.x + Math.cos(angle) * (radius - 1), planet.y + Math.sin(angle) * (radius - 1))
+        this.ctx.stroke()
+      }
+
+      // faint orbit track
+      this.ctx.globalAlpha = 0.12
+      this.ctx.strokeStyle = d.color
+      this.ctx.lineWidth = Math.max(1, 1 / zoom)
+      this.ctx.beginPath()
+      this.ctx.arc(planet.x, planet.y, d.ring, 0, Math.PI * 2)
+      this.ctx.stroke()
+
+      this.ctx.restore()
+    })
+  }
+
+  _drawOrbitalPixelModule(type, x, y, angle, baseColor, zoom = 1) {
+    const sprites = {
+      shipyard: {
+        pixel: 1.7,
+        rows: [
+          '00022222000',
+          '00211111120',
+          '02113333112',
+          '21133333311',
+          '02113333112',
+          '00211111120',
+          '00026662000',
+        ],
+      },
+      defense_platform: {
+        pixel: 1.6,
+        rows: [
+          '00012000',
+          '00111100',
+          '01133310',
+          '21133312',
+          '01133310',
+          '00177100',
+          '00066000',
+        ],
+      },
+      extractor: {
+        pixel: 1.6,
+        rows: [
+          '000220000',
+          '002111200',
+          '021333120',
+          '211343112',
+          '021333120',
+          '002111200',
+          '000660000',
+        ],
+      },
+      orbital_cannon: {
+        pixel: 1.8,
+        rows: [
+          '00002200000',
+          '00021112000',
+          '00213331200',
+          '02113333320',
+          '21113333311',
+          '02113333320',
+          '00211111200',
+          '00006660000',
+          '00000700000',
+        ],
+      },
+      trade_hub: {
+        pixel: 1.65,
+        rows: [
+          '000212000',
+          '002111200',
+          '021133120',
+          '211333112',
+          '021133120',
+          '002111200',
+          '000272000',
+        ],
+      },
+    }
+
+    const def = sprites[type]
+    if (!def) return
+
+    const rows = def.rows
+    const h = rows.length
+    const w = rows[0].length
+    const px = def.pixel / Math.max(0.8, Math.min(1.6, zoom))
+    const highlight = this._mix(baseColor, '#ffffff', 0.28)
+    const shadow = this._mix(baseColor, '#000000', 0.35)
+    const deep = this._mix(baseColor, '#000000', 0.52)
+    const engine = this._mix(baseColor, '#ffd27a', 0.55)
+    const core = this._mix(baseColor, '#9fdcff', 0.6)
+
+    this.ctx.save()
+    this.ctx.translate(x, y)
+    this.ctx.rotate(angle + Math.PI / 2)
+    this.ctx.imageSmoothingEnabled = false
+
+    for (let yy = 0; yy < h; yy++) {
+      for (let xx = 0; xx < w; xx++) {
+        const cell = rows[yy][xx]
+        if (cell === '0') continue
+        if (cell === '1') this.ctx.fillStyle = baseColor
+        else if (cell === '2') this.ctx.fillStyle = highlight
+        else if (cell === '3') this.ctx.fillStyle = shadow
+        else if (cell === '4') this.ctx.fillStyle = deep
+        else if (cell === '6') this.ctx.fillStyle = engine
+        else if (cell === '7') this.ctx.fillStyle = core
+        else continue
+
+        const rx = Math.round((xx - w / 2) * px)
+        const ry = Math.round((yy - h / 2) * px)
+        this.ctx.fillRect(rx, ry, px, px)
+      }
+    }
+
+    this.ctx.restore()
   }
 
   _getPlanetSprite(planet, radius, explored) {

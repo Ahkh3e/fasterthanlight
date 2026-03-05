@@ -431,23 +431,65 @@ def _remove_destroyed(state: GameState, ship_map: dict) -> None:
 def _check_elimination(state: GameState, planet_map: dict) -> None:
     if state.status != "running":
         return
-    planet_owners = {p.owner for p in state.planets if p.owner}
-    total_planets = len(state.planets)
+
+    faction_planets: dict[str, int] = {f.id: 0 for f in state.factions}
+    faction_ships: dict[str, int] = {f.id: 0 for f in state.factions}
+
+    for planet in state.planets:
+        if planet.owner in faction_planets:
+            faction_planets[planet.owner] += 1
+
+    for ship in state.ships:
+        if ship.owner in faction_ships and ship.health > 0:
+            faction_ships[ship.owner] += 1
+
+    # Eliminate factions with no remaining assets (no planets and no ships)
     for faction in state.factions:
         if faction.eliminated:
             continue
-        if faction.archetype == "player":
-            player_planets = sum(1 for p in state.planets if p.owner == faction.id)
-            if player_planets == 0:
-                state.status = "lost"
-                state.tick_events.append({"type": "game_over", "result": "loss"})
-            elif total_planets > 0 and player_planets / total_planets >= WIN_PLANET_FRACTION:
-                state.status = "won"
-                state.tick_events.append({"type": "game_over", "result": "win"})
-        else:
-            if faction.id not in planet_owners:
-                faction.eliminated = True
-                state.tick_events.append({
-                    "type":       "faction_eliminated",
-                    "faction_id": faction.id,
-                })
+        if faction_planets.get(faction.id, 0) == 0 and faction_ships.get(faction.id, 0) == 0:
+            faction.eliminated = True
+            state.tick_events.append({
+                "type": "faction_eliminated",
+                "faction_id": faction.id,
+            })
+
+    # PvP mode: if multiple human factions exist, last remaining human wins
+    human_factions = [f for f in state.factions if f.archetype == "player"]
+    pvp_mode = len(human_factions) > 1
+    if pvp_mode:
+        alive_humans = [f for f in human_factions if not f.eliminated]
+        if len(alive_humans) <= 1:
+            state.status = "won"
+            winner_id = alive_humans[0].id if alive_humans else None
+            state.tick_events.append({
+                "type": "game_over",
+                "result": "win",
+                "winner_faction_id": winner_id,
+                "mode": "pvp",
+            })
+        return
+
+    # Single-player mode: preserve existing win/lose semantics
+    total_planets = len(state.planets)
+    player_faction = next((f for f in state.factions if f.archetype == "player"), None)
+    if not player_faction:
+        return
+
+    player_planets = faction_planets.get(player_faction.id, 0)
+    if player_planets == 0:
+        state.status = "lost"
+        state.tick_events.append({
+            "type": "game_over",
+            "result": "loss",
+            "winner_faction_id": None,
+            "mode": "singleplayer",
+        })
+    elif total_planets > 0 and player_planets / total_planets >= WIN_PLANET_FRACTION:
+        state.status = "won"
+        state.tick_events.append({
+            "type": "game_over",
+            "result": "win",
+            "winner_faction_id": player_faction.id,
+            "mode": "singleplayer",
+        })

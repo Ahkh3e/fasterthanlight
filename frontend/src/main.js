@@ -6,6 +6,7 @@ import { GALAXY_WIDTH, GALAXY_HEIGHT, ZOOM_MIN, ZOOM_MAX } from './config.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
+const SESSION_STORAGE_KEY = 'ftl_session_v1'
 
 const hostLabelFromUrl = (url) => {
   try {
@@ -59,6 +60,7 @@ class GameApp {
     
     // Move target markers
     this.moveTargets = []
+    this.combatFx = []
 
     // Dashboard state: track last-rendered planet state to avoid unnecessary rebuilds
     this._dashboardSig = null
@@ -722,9 +724,53 @@ class GameApp {
   }
 
   startGame() {
-    // Show start screen; game begins when player clicks New Game
+    // Show start screen; may auto-resume a saved lobby/game session
     const ss = document.getElementById('start-screen')
     if (ss) ss.style.display = 'flex'
+    this.tryResumeSession()
+  }
+
+  persistSession() {
+    const payload = {
+      lobbyId: this.lobbyId,
+      lobbyToken: this.lobbyToken,
+      lobbyIsHost: this.lobbyIsHost,
+      gameId: this.gameId,
+      savedAt: Date.now(),
+    }
+    localStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(payload))
+  }
+
+  clearPersistedSession() {
+    localStorage.removeItem(SESSION_STORAGE_KEY)
+  }
+
+  async tryResumeSession() {
+    const raw = localStorage.getItem(SESSION_STORAGE_KEY)
+    if (!raw) return
+
+    try {
+      const saved = JSON.parse(raw)
+      if (!saved || (!saved.lobbyId && !saved.gameId)) return
+
+      this.lobbyId = saved.lobbyId || null
+      this.lobbyToken = saved.lobbyToken || null
+      this.lobbyIsHost = !!saved.lobbyIsHost
+      this.gameId = saved.gameId || null
+
+      if (this.gameId) {
+        this.renderLobbyStatus('Reconnecting to active match...')
+        await this.connectToGame(this.gameId, this.lobbyToken)
+        return
+      }
+
+      if (this.lobbyId && this.lobbyToken) {
+        this.renderLobbyStatus(`Reconnected to lobby ${this.lobbyId}`)
+        this.beginLobbyPolling()
+      }
+    } catch {
+      this.clearPersistedSession()
+    }
   }
 
   launchNewGame() {
@@ -757,6 +803,8 @@ class GameApp {
       this.lobbyId = data.lobby.lobby_id
       this.lobbyToken = data.your_token
       this.lobbyIsHost = true
+      this.gameId = null
+      this.persistSession()
       this.beginLobbyPolling()
       this.renderLobbyStatus(`Lobby created. Share code ${this.lobbyId}`, data.lobby.players || [])
     } catch (error) {
@@ -783,6 +831,8 @@ class GameApp {
       this.lobbyId = data.lobby.lobby_id
       this.lobbyToken = data.your_token
       this.lobbyIsHost = false
+      this.gameId = null
+      this.persistSession()
       this.beginLobbyPolling()
       this.renderLobbyStatus('Joined lobby. Waiting for host to start.', data.lobby.players || [])
     } catch (error) {
@@ -839,6 +889,12 @@ class GameApp {
     this.lobbyToken = null
     this.lobbyIsHost = false
     this.lobbyPlayers = []
+    if (!this.gameState) {
+      this.gameId = null
+      this.clearPersistedSession()
+    } else {
+      this.persistSession()
+    }
     this.renderLobbyStatus('Idle. Host or join a lobby.')
   }
 
@@ -877,6 +933,8 @@ class GameApp {
       this.lobbyPollInterval = null
     }
     this.socket?.close()
+    this.gameId = gameId
+    this.persistSession()
     this.connectionOnline = false
     this.playersOnline = 0
     this.updateConnectionHUD()
@@ -915,6 +973,7 @@ class GameApp {
       }
       this.gameId = msg.data.id          // serializer uses 'id' not 'game_id'
       this.seed = msg.data.seed
+      this.persistSession()
 
       // Hide start screen once game is live
       const ss = document.getElementById('start-screen')
@@ -997,7 +1056,9 @@ class GameApp {
       if (delta.events) {
         const destroyedIds = new Set()
         delta.events.forEach(evt => {
-          if (evt.type === 'ship_destroyed') destroyedIds.add(evt.ship_id)
+          if (evt.type === 'ship_destroyed') {
+            destroyedIds.add(evt.ship_id)
+          }
         })
         if (destroyedIds.size > 0) {
           this.gameState.ships = this.gameState.ships.filter(s => !destroyedIds.has(s.id))
@@ -1035,10 +1096,106 @@ class GameApp {
       } else if (evt.type === 'faction_eliminated') {
         const f = this.getFactionMap()[evt.faction_id]
         if (f) this.showNotification(`${f.name} eliminated!`, '#ffaa00')
+      } else if (evt.type === 'shot') {
+        this._emitShotFx(evt)
+      } else if (evt.type === 'ship_destroyed') {
+        this._emitExplosionFx(evt.ship_id)
       } else if (evt.type === 'game_over') {
-        this.showGameOverScreen(evt.result)
+        let resolved = evt.result
+        if (evt.mode === 'pvp' && evt.winner_faction_id) {
+          resolved = evt.winner_faction_id === this.gameState.player_faction_id ? 'win' : 'loss'
+        }
+        this.showGameOverScreen(resolved)
       }
     }
+  }
+
+  _emitShotFx(evt) {
+    const from = this._combatEntityPos(evt.from)
+    const to = this._combatEntityPos(evt.to)
+    if (!from || !to) return
+    const now = performance.now()
+    this.combatFx.push({
+      kind: 'laser',
+      fromX: from.x,
+      fromY: from.y,
+      toX: to.x,
+      toY: to.y,
+      start: now,
+      life: 120,
+      color: '#ffb347',
+    })
+    this.combatFx.push({
+      kind: 'impact',
+      x: to.x,
+      y: to.y,
+      start: now,
+      life: 180,
+      color: '#ffd27a',
+    })
+  }
+
+  _emitExplosionFx(shipId) {
+    const pos = this._combatEntityPos(shipId)
+    if (!pos) return
+    this.combatFx.push({
+      kind: 'explosion',
+      x: pos.x,
+      y: pos.y,
+      start: performance.now(),
+      life: 420,
+      color: '#ff7a5c',
+    })
+  }
+
+  _combatEntityPos(entityId) {
+    if (!entityId || !this.gameState) return null
+    const ship = this.gameState.ships.find(s => s.id === entityId)
+    if (ship) return { x: ship.x, y: ship.y }
+    if (entityId.startsWith('platform-')) {
+      const planetId = entityId.slice('platform-'.length)
+      const planet = this.gameState.planets.find(p => p.id === planetId)
+      if (planet) return { x: planet.x, y: planet.y }
+    }
+    return null
+  }
+
+  _drawCombatFx() {
+    if (!this.combatFx.length) return
+    const now = performance.now()
+    this.combatFx = this.combatFx.filter(fx => now - fx.start <= fx.life)
+
+    for (const fx of this.combatFx) {
+      const t = (now - fx.start) / fx.life
+      const alpha = Math.max(0, 1 - t)
+
+      if (fx.kind === 'laser') {
+        this.ctx.globalAlpha = alpha * 0.9
+        this.ctx.strokeStyle = fx.color
+        this.ctx.lineWidth = Math.max(1.2, 2 / this.zoom)
+        this.ctx.beginPath()
+        this.ctx.moveTo(fx.fromX, fx.fromY)
+        this.ctx.lineTo(fx.toX, fx.toY)
+        this.ctx.stroke()
+      } else if (fx.kind === 'impact') {
+        const r = (3 + t * 10) / this.zoom
+        this.ctx.globalAlpha = alpha * 0.8
+        this.ctx.strokeStyle = fx.color
+        this.ctx.lineWidth = Math.max(1, 1.5 / this.zoom)
+        this.ctx.beginPath()
+        this.ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2)
+        this.ctx.stroke()
+      } else if (fx.kind === 'explosion') {
+        const r = (6 + t * 26) / this.zoom
+        this.ctx.globalAlpha = alpha * 0.7
+        this.ctx.fillStyle = fx.color
+        this.ctx.beginPath()
+        this.ctx.arc(fx.x, fx.y, r, 0, Math.PI * 2)
+        this.ctx.fill()
+      }
+    }
+
+    this.ctx.globalAlpha = 1
   }
 
   showGameOverScreen(result) {
@@ -1269,10 +1426,12 @@ class GameApp {
     this.playersOnline = 0
     this.updateConnectionHUD()
     this.gameState = null
+    this.gameId = null
     this.planetRenderers = {}
     this.selectedPlanet = null
     this.selectedShips = new Set()
     this.clearLobbyState()
+    this.clearPersistedSession()
     this.startGame()  // shows start screen
   }
 
@@ -1307,7 +1466,6 @@ class GameApp {
       if (now2 - fpsLast >= 1000) {
         const fps = Math.round(fpsFrames * 1000 / (now2 - fpsLast))
         if (fpsDisplay) fpsDisplay.textContent = fps
-        console.log(`FPS: ${fps}`)
         fpsFrames = 0
         fpsLast = now2
       }
@@ -1320,6 +1478,13 @@ class GameApp {
         this.ctx.save()
         this.ctx.translate(this.panX, this.panY)
         this.ctx.scale(this.zoom, this.zoom)
+
+        const viewBounds = {
+          minX: (-this.panX) / this.zoom,
+          minY: (-this.panY) / this.zoom,
+          maxX: (this.width - this.panX) / this.zoom,
+          maxY: (this.height - this.panY) / this.zoom,
+        }
         
         // Draw lanes (Path2D cache rebuilt only on tick, not every frame)
         if (this.laneDirty) this._rebuildLanePaths(this.gameState.planets)
@@ -1331,13 +1496,25 @@ class GameApp {
         
         // Draw planets
         Object.values(this.planetRenderers).forEach(renderer => {
+          const planet = renderer.planet
+          if (!planet) return
+          const margin = Math.max(120, (planet.radius || 20) + 40)
+          if (
+            planet.x < viewBounds.minX - margin ||
+            planet.x > viewBounds.maxX + margin ||
+            planet.y < viewBounds.minY - margin ||
+            planet.y > viewBounds.maxY + margin
+          ) return
           renderer.draw(this.zoom)
         })
         
         // Draw ships (interpolated between server ticks)
         if (this.shipRenderer) {
-          this.shipRenderer.draw(this.selectedShips)
+          this.shipRenderer.draw(this.selectedShips, viewBounds)
         }
+
+        // Draw combat effects (laser shots, impacts, explosions)
+        this._drawCombatFx()
         
         // Draw move target markers (world space, fade over 1.5s)
         const now = performance.now()

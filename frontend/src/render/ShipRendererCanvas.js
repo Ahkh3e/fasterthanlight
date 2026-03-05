@@ -48,7 +48,7 @@ export default class ShipRendererCanvas {
 
   // ── Called every render frame ────────────────────────────────────────────
 
-  draw(selectedShips = new Set()) {
+  draw(selectedShips = new Set(), viewBounds = null) {
     if (!this.ships.length) return
 
     const alpha = Math.min(1, (performance.now() - this.tickTime) / this.tickInterval)
@@ -68,13 +68,17 @@ export default class ShipRendererCanvas {
       }
     })
 
+    const visible = viewBounds
+      ? lerped.filter(ship => this._inView(ship, viewBounds))
+      : lerped
+
     // ── Pixel-art ship sprites ─────────────────────────────────────────────
-    for (const ship of lerped) {
+    for (const ship of visible) {
       this._drawPixelShip(ship, this._colour(ship))
     }
 
     // ── Health bars (only damaged ships) ──────────────────────────────────
-    for (const ship of lerped) {
+    for (const ship of visible) {
       const h    = ship.health    ?? 1.0
       const maxH = ship.max_health ?? 1.0
       if (maxH > 0 && h < maxH && h > 0) this._healthBar(ship, h / maxH)
@@ -85,7 +89,7 @@ export default class ShipRendererCanvas {
       this.ctx.strokeStyle = '#ffff00'
       this.ctx.lineWidth   = 2
       this.ctx.beginPath()
-      for (const ship of lerped) {
+      for (const ship of visible) {
         if (!selectedShips.has(ship.id)) continue
         const sz = this._size(ship.type)
         this.ctx.moveTo(ship.x + sz + 3, ship.y)
@@ -93,6 +97,16 @@ export default class ShipRendererCanvas {
       }
       this.ctx.stroke()
     }
+  }
+
+  _inView(ship, bounds) {
+    const margin = 80
+    return !(
+      ship.x < bounds.minX - margin ||
+      ship.x > bounds.maxX + margin ||
+      ship.y < bounds.minY - margin ||
+      ship.y > bounds.maxY + margin
+    )
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

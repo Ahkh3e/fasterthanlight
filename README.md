@@ -38,6 +38,10 @@ docker compose up -d --build
 
 Then open `http://localhost:5173`.
 
+### Performance note
+- Backend per-second tick logging is disabled by default for smoother runtime.
+- To enable diagnostics temporarily, set `GAME_TICK_DIAGNOSTICS=1` for backend.
+
 ## Multiplayer Lobby (up to 6)
 
 - Use the start screen to host or join a lobby.
