@@ -2,6 +2,7 @@ import SocketClient from './network/SocketClient.js'
 import PlanetRendererCanvas from './render/PlanetRendererCanvas.js'
 import ShipRendererCanvas from './render/ShipRendererCanvas.js'
 import InputHandlerCanvas from './input/InputHandlerCanvas.js'
+import AudioManager from './audio/AudioManager.js'
 import { GALAXY_WIDTH, GALAXY_HEIGHT, ZOOM_MIN, ZOOM_MAX } from './config.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
@@ -25,6 +26,7 @@ class GameApp {
     this.inputHandler = null
     this.selectedPlanet = null
     this.selectedShips = new Set()
+    this.audio = new AudioManager()
     this.gameId = null
     this.seed = null
     this.connectionOnline = false
@@ -332,6 +334,10 @@ class GameApp {
     this.updateHUD()
     this.updateConnectionHUD()
     this.setupLobbyUI()
+
+    const unlockAudio = () => this.audio.unlock()
+    window.addEventListener('pointerdown', unlockAudio, { once: true })
+    window.addEventListener('keydown', unlockAudio, { once: true })
     
     // Setup dashboard
     this.setupDashboard()
@@ -393,6 +399,7 @@ class GameApp {
         temp.remove()
       }
       this.renderLobbyStatus(`Code copied: ${this.lobbyId}`)
+      this.audio.playSfx('click')
     } catch {
       this.renderLobbyStatus(`Copy failed. Code: ${this.lobbyId}`)
     }
@@ -727,6 +734,7 @@ class GameApp {
     // Show start screen; may auto-resume a saved lobby/game session
     const ss = document.getElementById('start-screen')
     if (ss) ss.style.display = 'flex'
+    this.audio.playMusic('menu')
     this.tryResumeSession()
   }
 
@@ -774,6 +782,7 @@ class GameApp {
   }
 
   launchNewGame() {
+    this.audio.playSfx('click')
     document.getElementById('start-screen')?.style.setProperty('display', 'none')
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
     this.clearLobbyState()
@@ -791,6 +800,7 @@ class GameApp {
 
   async hostLobby() {
     try {
+      this.audio.playSfx('click')
       const name = this.getPlayerName()
       localStorage.setItem('ftl_player_name', name)
       const response = await fetch(`${API_URL}/lobby/create`, {
@@ -807,6 +817,7 @@ class GameApp {
       this.persistSession()
       this.beginLobbyPolling()
       this.renderLobbyStatus(`Lobby created. Share code ${this.lobbyId}`, data.lobby.players || [])
+      this.audio.playSfx('lobby')
     } catch (error) {
       this.showNotification(`Failed to host lobby: ${error.message}`, '#ff4444')
     }
@@ -814,6 +825,7 @@ class GameApp {
 
   async joinLobby() {
     try {
+      this.audio.playSfx('click')
       const code = (document.getElementById('lobby-code-input')?.value || '').trim().toUpperCase()
       if (!code) {
         this.showNotification('Enter lobby code', '#ff4444')
@@ -835,6 +847,7 @@ class GameApp {
       this.persistSession()
       this.beginLobbyPolling()
       this.renderLobbyStatus('Joined lobby. Waiting for host to start.', data.lobby.players || [])
+      this.audio.playSfx('lobby')
     } catch (error) {
       this.showNotification(`Failed to join lobby: ${error.message}`, '#ff4444')
     }
@@ -843,6 +856,7 @@ class GameApp {
   async startLobbyMatch() {
     if (!this.lobbyId || !this.lobbyToken || !this.lobbyIsHost) return
     try {
+      this.audio.playSfx('click')
       const response = await fetch(`${API_URL}/lobby/${this.lobbyId}/start`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -899,6 +913,7 @@ class GameApp {
   }
 
   leaveLobby() {
+    this.audio.playSfx('click')
     this.clearLobbyState()
   }
 
@@ -945,6 +960,7 @@ class GameApp {
       this.connectionOnline = true
       this.updateConnectionHUD()
       this.updateHUD()
+      this.audio.playMusic('game')
     }
     this.socket.onClose = () => {
       this.connectionOnline = false
@@ -1090,21 +1106,27 @@ class GameApp {
         const pName = this.gameState.planets.find(p => p.id === evt.planet_id)?.name ?? evt.planet_id
         if (evt.by === pid) {
           this.showNotification(`Captured ${pName}!`, '#00ff88')
+          this.audio.playSfx('captured', 0.85)
         } else if (evt.from === pid) {
           this.showNotification(`Lost ${pName}!`, '#ff4444')
+          this.audio.playSfx('captured', 0.85)
         }
       } else if (evt.type === 'faction_eliminated') {
         const f = this.getFactionMap()[evt.faction_id]
         if (f) this.showNotification(`${f.name} eliminated!`, '#ffaa00')
+        this.audio.playSfx('eliminated', 0.9)
       } else if (evt.type === 'shot') {
         this._emitShotFx(evt)
+        this.audio.playSfx('shot', 0.65)
       } else if (evt.type === 'ship_destroyed') {
         this._emitExplosionFx(evt.ship_id)
+        this.audio.playSfx('explosion', 0.8)
       } else if (evt.type === 'game_over') {
         let resolved = evt.result
         if (evt.mode === 'pvp' && evt.winner_faction_id) {
           resolved = evt.winner_faction_id === this.gameState.player_faction_id ? 'win' : 'loss'
         }
+        this.audio.playSfx('game_over', 0.95)
         this.showGameOverScreen(resolved)
       }
     }
@@ -1432,6 +1454,7 @@ class GameApp {
     this.selectedShips = new Set()
     this.clearLobbyState()
     this.clearPersistedSession()
+    this.audio.playMusic('menu')
     this.startGame()  // shows start screen
   }
 
