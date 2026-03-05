@@ -188,7 +188,7 @@ def _ensure_connected(planets: list[Planet], id_to_planet: dict) -> None:
 def _faction_count(planet_count: int) -> int:
     if planet_count <= 25: return 3
     if planet_count <= 35: return 4
-    return 5
+    return 6
 
 
 def _create_factions(rng: random.Random, planet_count: int) -> list[Faction]:

@@ -17,7 +17,7 @@ from game.physics import physics_tick
 from game.simulation import tick as simulation_tick
 from game.combat import combat_tick
 from game.ai import ai_tick
-from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS
+from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, PLAYER_START_CREDITS
 
 app = FastAPI(title="Faster Than Light")
 
@@ -193,14 +193,44 @@ async def start_lobby(lobby_id: str, req: LobbyStartRequest):
     lobby.status = "started"
     lobby.game_id = game_id
 
+    sorted_members = sorted(lobby.members, key=lambda m: m.slot)
+    factions_by_start_order = list(state.factions)
+    if len(sorted_members) > len(factions_by_start_order):
+        raise HTTPException(status_code=409, detail="Not enough factions for lobby size")
+
+    assigned_faction_ids: set[str] = set()
+    for member, faction in zip(sorted_members, factions_by_start_order):
+        assigned_faction_ids.add(faction.id)
+        faction.archetype = "player"
+        faction.name = member.name
+        faction.ai_timer = 0
+        faction.credits = PLAYER_START_CREDITS
+
+    for faction in state.factions:
+        if faction.id not in assigned_faction_ids:
+            faction.eliminated = True
+
+    for planet in state.planets:
+        if planet.owner and planet.owner not in assigned_faction_ids:
+            planet.owner = None
+            planet.buildings = []
+            planet.build_queue = []
+            planet.level = 1
+        planet.explored_by = [fid for fid in planet.explored_by if fid == "neutral" or fid in assigned_faction_ids]
+
+    state.ships = [s for s in state.ships if s.owner in assigned_faction_ids]
+    state.ship_id_counter = len(state.ships)
+
+    state.player_faction_id = factions_by_start_order[0].id
+
     game_access_tokens[game_id] = {m.token for m in lobby.members}
     game_players_by_token[game_id] = {
         m.token: {
             "name": m.name,
             "slot": m.slot,
-            "faction_id": state.player_faction_id,
+            "faction_id": faction.id,
         }
-        for m in lobby.members
+        for m, faction in zip(sorted_members, factions_by_start_order)
     }
 
     return {
@@ -292,15 +322,18 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
         "faction_id": player_info.get("faction_id", games[game_id].player_faction_id),
     }
     try:
+        actor_info = connection_meta[game_id][id(websocket)]
         await websocket.send_json({
             "type": "welcome",
             "data": {
                 "connected": True,
                 "players_online": len(connections.get(game_id, [])),
-                "you": connection_meta[game_id][id(websocket)],
+                "you": actor_info,
             },
         })
-        await websocket.send_json({"type": "state", "data": serialize_state(games[game_id])})
+        state_snapshot = serialize_state(games[game_id])
+        state_snapshot["player_faction_id"] = actor_info.get("faction_id", games[game_id].player_faction_id)
+        await websocket.send_json({"type": "state", "data": state_snapshot})
         async for message in websocket.iter_json():
             actor_faction_id = connection_meta.get(game_id, {}).get(id(websocket), {}).get("faction_id", games[game_id].player_faction_id)
             await handle_input(game_id, message, actor_faction_id)

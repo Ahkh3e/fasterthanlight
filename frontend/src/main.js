@@ -35,6 +35,7 @@ class GameApp {
     this.lobbyToken = null
     this.lobbyIsHost = false
     this.lobbyPollInterval = null
+    this.pendingPlayerFactionId = null
     
     // Game state
     this.zoom = 1.0
@@ -360,15 +361,36 @@ class GameApp {
     const rosterEl = document.getElementById('lobby-roster')
     const codeEl = document.getElementById('lobby-code-display')
     const startBtn = document.getElementById('lobby-start-btn')
+    const copyBtn = document.getElementById('lobby-copy-btn')
 
     if (statusEl) statusEl.textContent = status
     if (rosterEl) {
       rosterEl.textContent = players.length
-        ? players.map(p => `${p.slot}. ${p.name}${p.is_host ? ' (Host)' : ''}`).join('  ·  ')
+        ? `Players Joined:\n${players.map(p => `${p.slot}. ${p.name}${p.is_host ? ' (Host)' : ''}`).join('\n')}`
         : 'No players yet.'
     }
     if (codeEl) codeEl.textContent = this.lobbyId ? `Lobby ${this.lobbyId}` : 'No active lobby'
     if (startBtn) startBtn.style.display = this.lobbyIsHost && this.lobbyId ? 'inline-block' : 'none'
+    if (copyBtn) copyBtn.style.display = this.lobbyId ? 'inline-block' : 'none'
+  }
+
+  async copyLobbyCode() {
+    if (!this.lobbyId) return
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(this.lobbyId)
+      } else {
+        const temp = document.createElement('input')
+        temp.value = this.lobbyId
+        document.body.appendChild(temp)
+        temp.select()
+        document.execCommand('copy')
+        temp.remove()
+      }
+      this.renderLobbyStatus(`Code copied: ${this.lobbyId}`)
+    } catch {
+      this.renderLobbyStatus(`Copy failed. Code: ${this.lobbyId}`)
+    }
   }
 
   // ── Income helper (mirrors backend formula × 20 ticks/s) ──────────────────
@@ -875,11 +897,18 @@ class GameApp {
     if (msg.type === 'welcome') {
       this.connectionOnline = !!msg.data?.connected
       this.playersOnline = Number(msg.data?.players_online ?? 0)
+      this.pendingPlayerFactionId = msg.data?.you?.faction_id ?? null
+      if (this.gameState && this.pendingPlayerFactionId) {
+        this.gameState.player_faction_id = this.pendingPlayerFactionId
+      }
       this.updateConnectionHUD()
       return
     }
     if (msg.type === 'state') {
       this.gameState = msg.data
+      if (this.pendingPlayerFactionId) {
+        this.gameState.player_faction_id = this.pendingPlayerFactionId
+      }
       this.gameId = msg.data.id          // serializer uses 'id' not 'game_id'
       this.seed = msg.data.seed
 
@@ -1599,6 +1628,7 @@ window.hostLobby = () => window.gameApp?.hostLobby()
 window.joinLobby = () => window.gameApp?.joinLobby()
 window.startLobbyMatch = () => window.gameApp?.startLobbyMatch()
 window.leaveLobby = () => window.gameApp?.leaveLobby()
+window.copyLobbyCode = () => window.gameApp?.copyLobbyCode()
 
 // Start the game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

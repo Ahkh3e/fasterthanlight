@@ -411,6 +411,91 @@
             color: #4b7087;
         }
 
+        .start-layout {
+            display: flex;
+            align-items: flex-start;
+            justify-content: center;
+            gap: 24px;
+            width: min(960px, 94vw);
+        }
+
+        .start-main {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-width: 320px;
+        }
+
+        .start-title {
+            font-size: 72px;
+            font-weight: 900;
+            letter-spacing: 10px;
+            margin-bottom: 10px;
+            color: var(--retro-gold);
+            text-shadow: 0 0 40px rgba(244, 207, 116, 0.28);
+        }
+
+        .start-subtitle {
+            font-size: 18px;
+            color: #8ab4cc;
+            letter-spacing: 2px;
+            margin-bottom: 34px;
+            text-transform: uppercase;
+        }
+
+        .start-help {
+            margin-top: 30px;
+            color: #5f7f95;
+            font-size: 13px;
+            letter-spacing: 1px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .lobby-box {
+            width: 360px;
+            min-height: 330px;
+            border: 2px solid #2d5876;
+            background: linear-gradient(180deg, rgba(16, 34, 50, 0.92), rgba(10, 23, 35, 0.95));
+            box-shadow: inset 0 0 0 1px rgba(122, 231, 255, 0.12);
+            padding: 14px;
+            box-sizing: border-box;
+        }
+
+        .lobby-box-title {
+            color: #9fe7ff;
+            font-size: 16px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+        }
+
+        .lobby-box-line {
+            color: #86b5cc;
+            font-size: 12px;
+            letter-spacing: 0.6px;
+            margin-bottom: 8px;
+            line-height: 1.45;
+            white-space: pre-line;
+        }
+
+        @media (max-width: 980px) {
+            .start-layout {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .lobby-box {
+                width: min(520px, 92vw);
+            }
+
+            .start-title {
+                font-size: 56px;
+                letter-spacing: 6px;
+            }
+        }
+
         #start-screen,
         #gameover-screen {
             background:
@@ -629,22 +714,36 @@
 
     <!-- Launch / Start Screen -->
     <div id="start-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0b0d12;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;">
-        <div style="font-size:52px;font-weight:900;color:#00e8cc;letter-spacing:8px;margin-bottom:6px;text-shadow:0 0 40px rgba(0,232,204,0.4);">FASTER THAN LIGHT</div>
-        <div style="font-size:13px;color:#3a6070;letter-spacing:4px;margin-bottom:56px;text-transform:uppercase;">Galactic Conquest</div>
-        <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
-            <button onclick="window.gameApp?.launchNewGame()" style="width:220px;padding:14px 0;font-size:14px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">NEW GAME</button>
-            <input id="lobby-player-name" class="retro-input" placeholder="Player Name" maxlength="20" />
-            <button onclick="window.hostLobby?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;">HOST LOBBY (MAX 6)</button>
-            <input id="lobby-code-input" class="retro-input" placeholder="Lobby Code" maxlength="6" />
-            <button onclick="window.joinLobby?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;">JOIN LOBBY</button>
-            <button id="lobby-start-btn" onclick="window.startLobbyMatch?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;display:none;">START MATCH</button>
-            <button onclick="window.leaveLobby?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;background:#102030;color:#6ea7c5;">LEAVE LOBBY</button>
-            <button onclick="window.gameApp?.openLoadMenu()" style="width:220px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;border-color:#1a3a50;cursor:not-allowed;opacity:0.5;" disabled>LOAD GAME</button>
+        <div class="start-layout">
+            <div class="start-main">
+                <div class="start-title">FASTER THAN LIGHT</div>
+                <div class="start-subtitle">Pick a mode and start playing</div>
+
+                <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
+                    <button onclick="window.gameApp?.launchNewGame()" style="width:260px;padding:14px 0;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">Play Solo</button>
+                    <input id="lobby-player-name" class="retro-input" placeholder="Your Name" maxlength="20" style="width:260px;" />
+                    <button onclick="window.hostLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;">Host PvP Lobby (6)</button>
+                    <input id="lobby-code-input" class="retro-input" placeholder="Enter Lobby Code" maxlength="6" style="width:260px;" />
+                    <button onclick="window.joinLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;">Join Lobby</button>
+                    <button id="lobby-start-btn" onclick="window.startLobbyMatch?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;display:none;">Start PvP Match</button>
+                    <button onclick="window.leaveLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;background:#102030;color:#6ea7c5;">Leave Lobby</button>
+                    <button onclick="window.gameApp?.openLoadMenu()" style="width:260px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;border-color:#1a3a50;cursor:not-allowed;opacity:0.5;" disabled>Load Game</button>
+                </div>
+
+                <div class="start-help">
+                    WASD to pan · C/V to zoom<br>
+                    Click to select · Right-click to move
+                </div>
+            </div>
+
+            <div class="lobby-box">
+                <div class="lobby-box-title">Lobby</div>
+                <div class="lobby-box-line" id="lobby-code-display">No active lobby</div>
+                <button id="lobby-copy-btn" onclick="window.copyLobbyCode?.()" style="width:100%;padding:10px 0;font-size:12px;letter-spacing:1px;margin-bottom:10px;display:none;">Copy Lobby Code</button>
+                <div class="lobby-box-line" id="lobby-status">Idle. Host or join a lobby.</div>
+                <div class="lobby-box-line" id="lobby-roster">No players yet.</div>
+            </div>
         </div>
-        <div style="margin-top:18px;color:#6d9ab3;font-size:11px;letter-spacing:1px;" id="lobby-code-display">No active lobby</div>
-        <div style="margin-top:8px;color:#6ea7c5;font-size:11px;letter-spacing:1px;" id="lobby-status">Idle. Host or join a lobby.</div>
-        <div style="margin-top:6px;color:#5b7b92;font-size:10px;letter-spacing:1px;max-width:70vw;text-align:center;" id="lobby-roster">No players yet.</div>
-        <div style="margin-top:48px;color:#2a3a44;font-size:11px;letter-spacing:2px;">WASD · PAN &nbsp;&nbsp; C/V · ZOOM &nbsp;&nbsp; CLICK · SELECT &nbsp;&nbsp; RIGHT-CLICK · MOVE</div>
     </div>
 
     <script type="module" src="/src/main.js"></script>
