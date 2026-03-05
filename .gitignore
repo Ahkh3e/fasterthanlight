@@ -5,3 +5,4 @@ frontend/dist/
 .claude/
 .DS_Store
 .cline_storage/
+__pycache__/
