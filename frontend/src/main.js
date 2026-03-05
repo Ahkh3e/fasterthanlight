@@ -35,6 +35,7 @@ class GameApp {
     this.lobbyToken = null
     this.lobbyIsHost = false
     this.lobbyPollInterval = null
+    this.lobbyPlayers = []
     this.pendingPlayerFactionId = null
     
     // Game state
@@ -356,17 +357,19 @@ class GameApp {
     this.renderLobbyStatus('Idle. Host or join a lobby.')
   }
 
-  renderLobbyStatus(status, players = []) {
+  renderLobbyStatus(status, players = null) {
     const statusEl = document.getElementById('lobby-status')
     const rosterEl = document.getElementById('lobby-roster')
     const codeEl = document.getElementById('lobby-code-display')
     const startBtn = document.getElementById('lobby-start-btn')
     const copyBtn = document.getElementById('lobby-copy-btn')
+    if (players != null) this.lobbyPlayers = players
+    const rosterPlayers = this.lobbyPlayers || []
 
     if (statusEl) statusEl.textContent = status
     if (rosterEl) {
-      rosterEl.textContent = players.length
-        ? `Players Joined:\n${players.map(p => `${p.slot}. ${p.name}${p.is_host ? ' (Host)' : ''}`).join('\n')}`
+      rosterEl.textContent = rosterPlayers.length
+        ? `Players Joined:\n${rosterPlayers.map(p => `${p.slot}. ${p.name}${p.is_host ? ' (Host)' : ''}`).join('\n')}`
         : 'No players yet.'
     }
     if (codeEl) codeEl.textContent = this.lobbyId ? `Lobby ${this.lobbyId}` : 'No active lobby'
@@ -835,6 +838,7 @@ class GameApp {
     this.lobbyId = null
     this.lobbyToken = null
     this.lobbyIsHost = false
+    this.lobbyPlayers = []
     this.renderLobbyStatus('Idle. Host or join a lobby.')
   }
 

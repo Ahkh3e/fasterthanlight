@@ -480,6 +480,16 @@
             white-space: pre-line;
         }
 
+        .lobby-copy-btn {
+            display: block;
+            width: 100%;
+            padding: 10px 0;
+            font-size: 12px;
+            letter-spacing: 1px;
+            margin: 0 0 10px 0;
+            box-sizing: border-box;
+        }
+
         @media (max-width: 980px) {
             .start-layout {
                 flex-direction: column;
@@ -739,7 +749,7 @@
             <div class="lobby-box">
                 <div class="lobby-box-title">Lobby</div>
                 <div class="lobby-box-line" id="lobby-code-display">No active lobby</div>
-                <button id="lobby-copy-btn" onclick="window.copyLobbyCode?.()" style="width:100%;padding:10px 0;font-size:12px;letter-spacing:1px;margin-bottom:10px;display:none;">Copy Lobby Code</button>
+                <button id="lobby-copy-btn" class="lobby-copy-btn" onclick="window.copyLobbyCode?.()" style="display:none;">Copy Lobby Code</button>
                 <div class="lobby-box-line" id="lobby-status">Idle. Host or join a lobby.</div>
                 <div class="lobby-box-line" id="lobby-roster">No players yet.</div>
             </div>
