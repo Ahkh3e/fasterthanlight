@@ -342,10 +342,8 @@ def _create_starting_ships(
     # Faction starting fleets
     for faction in factions:
         home = planet_map[faction.home_planet]
-        if faction.id == "player":
-            ships += [spawn("fighter", "player", home) for _ in range(4)]
-        else:
-            ships += [spawn("fighter", faction.id, home) for _ in range(2)]
+        # All factions get the same starting fleet (fair for PVP)
+        ships += [spawn("fighter", faction.id, home) for _ in range(4)]
 
     # Neutral garrisons on unowned planets (1 fighter per planet)
     for planet in planets:

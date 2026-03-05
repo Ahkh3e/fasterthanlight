@@ -116,11 +116,11 @@ ORBIT_RING_STEP         = 18      # spacing between orbit rings
 
 # ── Ship stats: hp, damage, fire_rate (ticks), speed, sensor_range, fuel_cost ─
 SHIP_STATS = {
-    "fighter":     dict(hp=50,  damage=8,  fire_rate=15, speed=30.0, sensor=300, fuel=0.003),
-    "cruiser":     dict(hp=150, damage=20, fire_rate=20, speed=22.0, sensor=350, fuel=0.004),
-    "bomber":      dict(hp=120, damage=45, fire_rate=35, speed=18.0, sensor=300, fuel=0.004),
-    "carrier":     dict(hp=300, damage=10, fire_rate=25, speed=14.0, sensor=400, fuel=0.006),
-    "dreadnought": dict(hp=600, damage=80, fire_rate=30, speed=10.0, sensor=380, fuel=0.008),
+    "fighter":     dict(hp=50,  damage=8,  fire_rate=15, speed=36.0, sensor=300, fuel=0.003),
+    "cruiser":     dict(hp=150, damage=20, fire_rate=20, speed=26.4, sensor=350, fuel=0.004),
+    "bomber":      dict(hp=120, damage=45, fire_rate=35, speed=21.6, sensor=300, fuel=0.004),
+    "carrier":     dict(hp=300, damage=10, fire_rate=25, speed=16.8, sensor=400, fuel=0.006),
+    "dreadnought": dict(hp=600, damage=80, fire_rate=30, speed=12.0, sensor=380, fuel=0.008),
 }
 SHIP_ATTACK_RANGE = {
     "fighter":150, "cruiser":250,

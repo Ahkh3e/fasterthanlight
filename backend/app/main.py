@@ -1,6 +1,8 @@
 import asyncio
 import json
+import logging
 import os
+import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -19,6 +21,8 @@ from game.combat import combat_tick
 from game.ai import ai_tick
 from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, PLAYER_START_CREDITS
 
+logger = logging.getLogger("ftl")
+
 app = FastAPI(title="Faster Than Light")
 
 app.add_middleware(
@@ -32,14 +36,19 @@ TICK_RATE = int(os.getenv("GAME_TICK_RATE", "20"))
 TICK_DIAGNOSTICS = os.getenv("GAME_TICK_DIAGNOSTICS", "0") == "1"
 GAME_IDLE_PAUSE_SECONDS = int(os.getenv("GAME_IDLE_PAUSE_SECONDS", "15"))
 GAME_IDLE_EXPIRE_SECONDS = int(os.getenv("GAME_IDLE_EXPIRE_SECONDS", "1800"))
+GAME_FINISHED_LINGER_SECONDS = int(os.getenv("GAME_FINISHED_LINGER_SECONDS", "120"))  # cleanup finished games after 2 min
+LOBBY_EXPIRE_SECONDS = int(os.getenv("LOBBY_EXPIRE_SECONDS", "600"))  # cleanup stale lobbies after 10 min
 SAVES_DIR = Path("saves")
 SAVES_DIR.mkdir(exist_ok=True)
 
 games:       dict[str, GameState]      = {}
 connections: dict[str, list[WebSocket]] = {}
 connection_meta: dict[str, dict[int, dict]] = {}
+game_created_at: dict[str, float] = {}       # monotonic time when game was created
+game_finished_at: dict[str, float] = {}      # monotonic time when game ended (won/lost)
 
 lobbies: dict[str, "Lobby"] = {}
+lobby_created_at: dict[str, float] = {}      # monotonic time when lobby was created
 game_access_tokens: dict[str, set[str]] = {}
 game_players_by_token: dict[str, dict[str, dict]] = {}
 
@@ -112,8 +121,22 @@ def _create_game(seed: Optional[int], planet_count: Optional[int]) -> tuple[str,
     games[game_id] = state
     connections[game_id] = []
     connection_meta[game_id] = {}
+    game_created_at[game_id] = asyncio.get_event_loop().time()
     asyncio.create_task(game_loop(game_id))
+    logger.info(f"Game {game_id} created (seed={game_seed}, planets={planet_count or 120}, active_games={len(games)})")
     return game_id, state
+
+
+def _cleanup_game(game_id: str) -> None:
+    """Remove all state associated with a game."""
+    games.pop(game_id, None)
+    connections.pop(game_id, None)
+    connection_meta.pop(game_id, None)
+    game_access_tokens.pop(game_id, None)
+    game_players_by_token.pop(game_id, None)
+    game_created_at.pop(game_id, None)
+    game_finished_at.pop(game_id, None)
+    logger.info(f"Game {game_id} cleaned up (active_games={len(games)})")
 
 
 # ── REST endpoints ────────────────────────────────────────────────────────────
@@ -144,6 +167,7 @@ async def create_lobby(req: LobbyCreateRequest):
         members=[LobbyMember(token=host_token, name=host_name, slot=1, is_host=True)],
     )
     lobbies[lobby_id] = lobby
+    lobby_created_at[lobby_id] = asyncio.get_event_loop().time()
 
     return {
         "lobby": lobby.to_dict(),
@@ -454,6 +478,7 @@ async def game_loop(game_id: str) -> None:
     _diag_ticks = 0
     _diag_last  = loop.time()
     _last_connection_seen = loop.time()
+    _idle_escalation = 0  # tracks how long idle, for progressive sleep
 
     while game_id in games:
         tick_start = loop.time()
@@ -464,18 +489,33 @@ async def game_loop(game_id: str) -> None:
         online_count = len(connections.get(game_id, []))
         if online_count > 0:
             _last_connection_seen = tick_start
+            _idle_escalation = 0
         else:
             idle_for = tick_start - _last_connection_seen
             if idle_for >= GAME_IDLE_EXPIRE_SECONDS:
-                games.pop(game_id, None)
-                connections.pop(game_id, None)
-                connection_meta.pop(game_id, None)
-                game_access_tokens.pop(game_id, None)
-                game_players_by_token.pop(game_id, None)
-                continue
+                logger.info(f"Game {game_id} expired after {idle_for:.0f}s idle")
+                _cleanup_game(game_id)
+                return
             if idle_for >= GAME_IDLE_PAUSE_SECONDS:
-                await asyncio.sleep(min(0.25, tick_interval))
+                # Progressive sleep: ramp from 0.25s to 2s as idle time grows
+                _idle_escalation = min(idle_for - GAME_IDLE_PAUSE_SECONDS, 60.0)
+                sleep_time = min(2.0, 0.25 + _idle_escalation * 0.03)
+                await asyncio.sleep(sleep_time)
                 continue
+
+        # Finished games: stop ticking but keep alive briefly for end-screen
+        if state.status in ("won", "lost"):
+            if game_id not in game_finished_at:
+                game_finished_at[game_id] = tick_start
+                logger.info(f"Game {game_id} finished with status '{state.status}'")
+            finished_for = tick_start - game_finished_at[game_id]
+            if finished_for >= GAME_FINISHED_LINGER_SECONDS and online_count == 0:
+                logger.info(f"Game {game_id} cleanup after finish + {finished_for:.0f}s linger")
+                _cleanup_game(game_id)
+                return
+            # Don't tick, just keep connection alive for end-screen
+            await asyncio.sleep(0.5)
+            continue
 
         if not state.running:
             await asyncio.sleep(tick_interval)
@@ -545,3 +585,83 @@ async def game_loop(game_id: str) -> None:
 
     connections.pop(game_id, None)
     connection_meta.pop(game_id, None)
+
+
+# ── Periodic cleanup task ─────────────────────────────────────────────────────
+
+async def _cleanup_stale_lobbies() -> None:
+    """Runs every 30s. Removes lobbies that haven't started within LOBBY_EXPIRE_SECONDS."""
+    while True:
+        await asyncio.sleep(30)
+        now = asyncio.get_event_loop().time()
+        stale = [
+            lid for lid, lobby in lobbies.items()
+            if lobby.status == "waiting"
+            and now - lobby_created_at.get(lid, now) >= LOBBY_EXPIRE_SECONDS
+        ]
+        for lid in stale:
+            lobbies.pop(lid, None)
+            lobby_created_at.pop(lid, None)
+            logger.info(f"Lobby {lid} expired (stale)")
+
+        # Also clean up started lobbies whose game no longer exists
+        started_stale = [
+            lid for lid, lobby in lobbies.items()
+            if lobby.status == "started"
+            and lobby.game_id
+            and lobby.game_id not in games
+        ]
+        for lid in started_stale:
+            lobbies.pop(lid, None)
+            lobby_created_at.pop(lid, None)
+
+
+@app.on_event("startup")
+async def _start_cleanup_tasks():
+    asyncio.create_task(_cleanup_stale_lobbies())
+    logger.info("Session cleanup task started")
+
+
+# ── Admin / status endpoint ──────────────────────────────────────────────────
+
+@app.get("/admin/status")
+async def admin_status():
+    """Overview of all active games, connections, and lobbies."""
+    now = asyncio.get_event_loop().time()
+    game_list = []
+    for gid, state in games.items():
+        conns = connections.get(gid, [])
+        created = game_created_at.get(gid, now)
+        finished = game_finished_at.get(gid)
+        game_list.append({
+            "game_id": gid,
+            "tick": state.tick,
+            "status": state.status,
+            "running": state.running,
+            "players_online": len(conns),
+            "ships": len(state.ships),
+            "planets": len(state.planets),
+            "factions_alive": sum(1 for f in state.factions if not f.eliminated),
+            "uptime_s": round(now - created, 1),
+            "finished_at_s_ago": round(now - finished, 1) if finished else None,
+        })
+
+    lobby_list = []
+    for lid, lobby in lobbies.items():
+        created = lobby_created_at.get(lid, now)
+        lobby_list.append({
+            "lobby_id": lid,
+            "status": lobby.status,
+            "players": len(lobby.members),
+            "max_players": lobby.max_players,
+            "game_id": lobby.game_id,
+            "age_s": round(now - created, 1),
+        })
+
+    return {
+        "active_games": len(games),
+        "total_connections": sum(len(c) for c in connections.values()),
+        "active_lobbies": len(lobbies),
+        "games": game_list,
+        "lobbies": lobby_list,
+    }
