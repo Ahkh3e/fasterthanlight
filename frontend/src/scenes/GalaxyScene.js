@@ -460,56 +460,63 @@ export default class GalaxyScene extends Phaser.Scene {
     const explored = planet.explored_by.some(fid => fid !== 'neutral')
     const isOwn    = planet.owner === pid
     const ownerName = planet.owner ? (fMap[planet.owner]?.name ?? planet.owner) : 'Neutral'
-    const ownerHex  = planet.owner === pid ? '#00ffff' : (fMap[planet.owner]?.colour ?? '#888888')
+    const ownerHex  = planet.owner === pid ? '#00ffff' : (fMap[planet.owner]?.colour ?? '#aaaaaa')
 
     const W  = this.scale.width
     const H  = this.scale.height
     const z  = this.cameras.main.zoom
     
-    // FIXED: Dashboard should be fixed size overlay, not scale with zoom
-    const PW = Math.min(940, W - 40)
-    const PH = Math.min(580, H - 40)
+    // Large dashboard — fills most of the screen
+    const PW = Math.min(1200, W - 30)
+    const PH = Math.min(800, H - 30)
     const px = (W - PW) / 2
     const py = (H - PH) / 2
 
     // Create dashboard container as fixed-size overlay
     const dash = this.add.container(px, py).setScrollFactor(0).setDepth(200)
-    // FIXED: Apply inverse scale to counteract camera zoom - makes it appear fixed-size
     dash.setScale(1 / z)
 
     // Dim overlay — click outside to close
-    const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.72).setOrigin(0).setInteractive()
+    const overlay = this.add.rectangle(0, 0, W, H, 0x000000, 0.78).setOrigin(0).setInteractive()
     overlay.on('pointerdown', () => this._closePlanetDashboard())
     dash.add(overlay)
 
-    // Panel background
-    const bg = this.add.rectangle(0, 0, PW, PH, 0x050f1a, 0.97).setOrigin(0).setStrokeStyle(1, 0x1a4060)
+    // Panel background with stronger border
+    const bg = this.add.rectangle(0, 0, PW, PH, 0x06121e, 0.98).setOrigin(0).setStrokeStyle(2, 0x1a5575)
     dash.add(bg)
 
     // ── Header ───────────────────────────────────────────────────────────────
-    const title = this.add.text(PW / 2, 14, explored ? planet.name : '???', {
-      fontSize: '20px', color: '#00ffff', fontFamily: 'monospace', fontStyle: 'bold',
+    const title = this.add.text(PW / 2, 18, explored ? planet.name : '???', {
+      fontSize: '28px', color: '#00ffff', fontFamily: 'monospace', fontStyle: 'bold',
     }).setOrigin(0.5, 0)
     dash.add(title)
 
-    const ownerText = this.add.text(16, 16, ownerName, {
-      fontSize: '13px', color: ownerHex, fontFamily: 'monospace',
+    const ownerText = this.add.text(20, 22, ownerName, {
+      fontSize: '16px', color: ownerHex, fontFamily: 'monospace',
     }).setOrigin(0, 0)
     dash.add(ownerText)
 
-    const closeBtn = this.add.text(PW - 14, 10, '×', {
-      fontSize: '24px', color: '#667788', fontFamily: 'monospace',
+    // Level badge in header
+    if (explored) {
+      const lvlBadge = this.add.text(PW / 2, 50, `Level ${planet.level}`, {
+        fontSize: '14px', color: '#4a9abb', fontFamily: 'monospace',
+      }).setOrigin(0.5, 0)
+      dash.add(lvlBadge)
+    }
+
+    const closeBtn = this.add.text(PW - 18, 14, '✕', {
+      fontSize: '28px', color: '#778899', fontFamily: 'monospace',
     }).setOrigin(1, 0).setInteractive({ useHandCursor: true })
     closeBtn.on('pointerover', () => closeBtn.setColor('#ff4444'))
-    closeBtn.on('pointerout',  () => closeBtn.setColor('#667788'))
+    closeBtn.on('pointerout',  () => closeBtn.setColor('#778899'))
     closeBtn.on('pointerdown', () => this._closePlanetDashboard())
     dash.add(closeBtn)
 
     const hg = this.add.graphics()
-    hg.lineStyle(1, 0x1a4060); hg.lineBetween(0, 46, PW, 46)
+    hg.lineStyle(2, 0x1a5575); hg.lineBetween(0, 68, PW, 68)
     dash.add(hg)
 
-    const cTop = 54
+    const cTop = 80
 
     // ── Unexplored: minimal view ──────────────────────────────────────────────
     if (!explored) {
@@ -517,23 +524,23 @@ export default class GalaxyScene extends Phaser.Scene {
         ? `Territory of ${ownerName}\n\nUnexplored — send ships to reveal details`
         : 'Uncharted System\n\nSend ships to explore'
       dash.add(this.add.text(PW / 2, PH / 2, msg, {
-        fontSize: '15px', color: '#667788', fontFamily: 'monospace', align: 'center', lineSpacing: 8,
+        fontSize: '20px', color: '#778899', fontFamily: 'monospace', align: 'center', lineSpacing: 14,
       }).setOrigin(0.5, 0.5))
       this._planetDashboard = dash
       return
     }
 
-    // ── Left column: planet visual ────────────────────────────────────────────
-    const LW  = 260
+    // ── Left column: planet visual + stats ────────────────────────────────────
+    const LW  = 340
     const LCX = LW / 2
-    const visY = cTop + 105
-    const VR   = 72
+    const visY = cTop + 125
+    const VR   = 95
     const RC = { minerals: [0x5588bb, 0x3366aa], energy: [0xccaa33, 0xaa8800], rare: [0x8855bb, 0x6633aa] }
     const [fill, glow] = RC[planet.resource_type] ?? [0x445566, 0x223344]
 
     const pg = this.add.graphics()
-    pg.fillStyle(glow, 0.05); pg.fillCircle(LCX, visY, VR + 30)
-    pg.fillStyle(glow, 0.12); pg.fillCircle(LCX, visY, VR + 14)
+    pg.fillStyle(glow, 0.05); pg.fillCircle(LCX, visY, VR + 40)
+    pg.fillStyle(glow, 0.12); pg.fillCircle(LCX, visY, VR + 18)
     pg.fillStyle(fill, 0.92); pg.fillCircle(LCX, visY, VR)
     pg.fillStyle(0x000000, 0.28); pg.fillCircle(LCX - VR * 0.22, visY - VR * 0.12, VR * 0.60)
     pg.fillStyle(0xffffff, 0.06); pg.fillCircle(LCX + VR * 0.28, visY - VR * 0.30, VR * 0.32)
@@ -541,12 +548,12 @@ export default class GalaxyScene extends Phaser.Scene {
       s => s.state === 'orbiting' && s.target_planet === planet.id
     ).length
     if (orbitingCount > 0) {
-      pg.lineStyle(1, isOwn ? 0x00ffff : 0xffffff, 0.28); pg.strokeCircle(LCX, visY, VR + 20)
-      pg.lineStyle(1, isOwn ? 0x00ffff : 0xffffff, 0.10); pg.strokeCircle(LCX, visY, VR + 33)
+      pg.lineStyle(1.5, isOwn ? 0x00ffff : 0xffffff, 0.30); pg.strokeCircle(LCX, visY, VR + 26)
+      pg.lineStyle(1, isOwn ? 0x00ffff : 0xffffff, 0.12); pg.strokeCircle(LCX, visY, VR + 40)
     }
     if (planet.defense > 0.05) {
-      pg.lineStyle(2, 0xff6644, Math.min(planet.defense * 3, 0.75))
-      pg.strokeCircle(LCX, visY, VR + 10)
+      pg.lineStyle(2.5, 0xff6644, Math.min(planet.defense * 3, 0.75))
+      pg.strokeCircle(LCX, visY, VR + 13)
     }
     dash.add(pg)
 
@@ -559,77 +566,80 @@ export default class GalaxyScene extends Phaser.Scene {
       ['Orbiting',    `${orbitingCount} ship${orbitingCount !== 1 ? 's' : ''}`],
     ]
     leftStats.forEach(([lbl, val], i) => {
-      const ly = visY + VR + 22 + i * 20
-      dash.add(this.add.text(14, ly, lbl,
-        { fontSize: '12px', color: '#6a8899', fontFamily: 'monospace' }))
-      dash.add(this.add.text(LW - 8, ly, val,
-        { fontSize: '12px', color: '#c0d4e0', fontFamily: 'monospace' }).setOrigin(1, 0))
+      const ly = visY + VR + 32 + i * 28
+      dash.add(this.add.text(20, ly, lbl,
+        { fontSize: '15px', color: '#7a9db0', fontFamily: 'monospace' }))
+      dash.add(this.add.text(LW - 14, ly, val,
+        { fontSize: '15px', color: '#d4e8f0', fontFamily: 'monospace', fontStyle: 'bold' }).setOrigin(1, 0))
     })
 
     // Vertical divider
     const vdg = this.add.graphics()
-    vdg.lineStyle(1, 0x1a4060); vdg.lineBetween(LW + 10, cTop, LW + 10, PH - 8)
+    vdg.lineStyle(2, 0x1a5575); vdg.lineBetween(LW + 14, cTop, LW + 14, PH - 12)
     dash.add(vdg)
 
     // ── Right column ──────────────────────────────────────────────────────────
-    const RX = LW + 26
-    const RW = PW - LW - 38
+    const RX = LW + 36
+    const RW = PW - LW - 52
     let   ry = cTop
 
     const section = (label) => {
       const sg = this.add.graphics()
-      sg.lineStyle(1, 0x1a5070); sg.lineBetween(RX, ry + 15, RX + RW - 8, ry + 15)
+      sg.lineStyle(1, 0x1a6080); sg.lineBetween(RX, ry + 20, RX + RW - 8, ry + 20)
       dash.add(sg)
-      dash.add(this.add.text(RX, ry, label, { fontSize: '11px', color: '#4a8aaa', fontFamily: 'monospace', fontStyle: 'bold' }))
-      ry += 24
+      dash.add(this.add.text(RX, ry, label, { fontSize: '14px', color: '#55aacc', fontFamily: 'monospace', fontStyle: 'bold' }))
+      ry += 32
     }
 
-    const row = (key, val, vc = '#c0d4e0') => {
-      dash.add(this.add.text(RX,       ry, key, { fontSize: '12px', color: '#6a8899', fontFamily: 'monospace' }))
-      dash.add(this.add.text(RX + 130, ry, val, { fontSize: '12px', color: vc,        fontFamily: 'monospace' }))
-      ry += 19
+    const row = (key, val, vc = '#d4e8f0') => {
+      dash.add(this.add.text(RX,       ry, key, { fontSize: '15px', color: '#7a9db0', fontFamily: 'monospace' }))
+      dash.add(this.add.text(RX + 180, ry, val, { fontSize: '15px', color: vc,        fontFamily: 'monospace' }))
+      ry += 26
     }
 
     // Buildings
     const BLDG_INFO = {
-      extractor:        { label: 'Extractor',        desc: '+50% resource income from this planet' },
-      shipyard:         { label: 'Shipyard',          desc: 'Unlocks manual ship construction' },
-      research_lab:     { label: 'Research Lab',      desc: '+1 RP/tick → unlocks tech tiers 2 & 3' },
-      defense_platform: { label: 'Defense Platform',  desc: '+25 combat defense power' },
+      extractor:        { label: 'Extractor',        desc: '+50% resource income' },
+      shipyard:         { label: 'Shipyard',          desc: 'Unlocks ship construction' },
+      research_lab:     { label: 'Research Lab',      desc: '+1 RP/tick → tech tiers' },
+      defense_platform: { label: 'Defense Platform',  desc: '+25 combat defense' },
+      trade_hub:        { label: 'Trade Hub',         desc: '+income bonus' },
+      orbital_cannon:   { label: 'Orbital Cannon',    desc: '+50 heavy defense' },
     }
 
     section('BUILDINGS')
     if (planet.buildings.length === 0) {
-      dash.add(this.add.text(RX, ry, 'None constructed', { fontSize: '12px', color: '#3a5565', fontFamily: 'monospace' }))
-      ry += 19
+      dash.add(this.add.text(RX, ry, 'None constructed', { fontSize: '15px', color: '#4a6575', fontFamily: 'monospace', fontStyle: 'italic' }))
+      ry += 26
     } else {
       for (const b of planet.buildings) {
         const info = BLDG_INFO[b] ?? { label: b, desc: '' }
-        dash.add(this.add.text(RX,       ry, `● ${info.label}`, { fontSize: '12px', color: '#c0d4e0', fontFamily: 'monospace' }))
-        dash.add(this.add.text(RX + 155, ry, info.desc,          { fontSize: '11px', color: '#5a7a8a', fontFamily: 'monospace' }))
-        ry += 19
+        dash.add(this.add.text(RX,       ry, `●  ${info.label}`, { fontSize: '15px', color: '#d4e8f0', fontFamily: 'monospace' }))
+        dash.add(this.add.text(RX + 210, ry, info.desc,           { fontSize: '13px', color: '#6a8ea0', fontFamily: 'monospace' }))
+        ry += 26
       }
     }
-    ry += 6
+    ry += 10
 
     // Build queue
     const queue = planet.build_queue ?? []
     section(`BUILD QUEUE  (${queue.length}/2)`)
     if (queue.length === 0) {
-      dash.add(this.add.text(RX, ry, 'Empty', { fontSize: '12px', color: '#3a5565', fontFamily: 'monospace' }))
-      ry += 19
+      dash.add(this.add.text(RX, ry, 'Empty', { fontSize: '15px', color: '#4a6575', fontFamily: 'monospace', fontStyle: 'italic' }))
+      ry += 26
     } else {
       for (const item of queue) {
         const name = item.name ?? item.ship_type ?? '?'
+        const totalTicks = item.total_ticks || 400
         const secs = Math.round(item.ticks_remaining / 20)
-        const pct  = Math.max(0, Math.round((1 - item.ticks_remaining / 400) * 12))
-        const bar  = `[${'█'.repeat(pct)}${'░'.repeat(12 - pct)}]`
-        dash.add(this.add.text(RX, ry, `● ${name.padEnd(10)} ${secs}s  ${bar}`,
-          { fontSize: '12px', color: '#8db0c4', fontFamily: 'monospace' }))
-        ry += 19
+        const pct  = Math.max(0, Math.round((1 - item.ticks_remaining / totalTicks) * 16))
+        const bar  = `[${'█'.repeat(pct)}${'░'.repeat(16 - pct)}]`
+        dash.add(this.add.text(RX, ry, `●  ${name.padEnd(12)} ${secs}s  ${bar}`,
+          { fontSize: '15px', color: '#a0c8dd', fontFamily: 'monospace' }))
+        ry += 26
       }
     }
-    ry += 6
+    ry += 10
 
     // Build options (own planet only)
     if (isOwn) {
@@ -642,18 +652,22 @@ export default class GalaxyScene extends Phaser.Scene {
         { name: 'shipyard',         label: 'Shipyard',     cost: 200 },
         { name: 'research_lab',     label: 'Lab',          cost: 150 },
         { name: 'defense_platform', label: 'Defense',      cost: 250 },
+        { name: 'trade_hub',        label: 'Trade Hub',    cost: 350 },
+        { name: 'orbital_cannon',   label: 'Cannon',       cost: 450 },
       ]
       const SHIPS = [
-        { name: 'fighter', label: 'Fighter', cost: 50,  tier: 1 },
-        { name: 'cruiser', label: 'Cruiser', cost: 150, tier: 2 },
-        { name: 'bomber',  label: 'Bomber',  cost: 120, tier: 2 },
+        { name: 'fighter',     label: 'Fighter',     cost: 50,  tier: 1 },
+        { name: 'cruiser',     label: 'Cruiser',     cost: 150, tier: 2 },
+        { name: 'bomber',      label: 'Bomber',      cost: 120, tier: 2 },
+        { name: 'carrier',     label: 'Carrier',     cost: 400, tier: 3 },
+        { name: 'dreadnought', label: 'Dreadnought', cost: 800, tier: 3 },
       ]
 
       const makeBtn = (label, canBuild, onClick) => {
-        const col = canBuild ? '#8db8d0' : '#3a5060'
-        const btn = this.add.text(0, 0, `[${label}]`, {
-          fontSize: '12px', color: col, fontFamily: 'monospace',
-          backgroundColor: '#080f18', padding: { x: 5, y: 3 },
+        const col = canBuild ? '#a0d0e8' : '#3a5565'
+        const btn = this.add.text(0, 0, `[ ${label} ]`, {
+          fontSize: '14px', color: col, fontFamily: 'monospace',
+          backgroundColor: '#0a1520', padding: { x: 8, y: 6 },
         })
         if (canBuild) {
           btn.setInteractive({ useHandCursor: true })
@@ -673,10 +687,10 @@ export default class GalaxyScene extends Phaser.Scene {
         for (const btn of btns) {
           btn.setPosition(bx, ry)
           dash.add(btn)
-          bx += btn.width + 8
-          if (bx > RX + RW - 60) { bx = RX; ry += 26 }
+          bx += btn.width + 12
+          if (bx > RX + RW - 80) { bx = RX; ry += 36 }
         }
-        ry += 28
+        ry += 40
       }
 
       const availBldgs = BLDGS.filter(b => !planet.buildings.includes(b.name))
@@ -684,7 +698,7 @@ export default class GalaxyScene extends Phaser.Scene {
         section('CONSTRUCT')
         layoutBtns(availBldgs.map(b => {
           const can = !queueFull && faction.credits >= b.cost
-          return makeBtn(`${b.label}  ${b.cost} Credits`, can, () =>
+          return makeBtn(`${b.label}  ${b.cost}cr`, can, () =>
             this.socket?.send({ type: 'build', planet_id: planet.id, item_type: 'building', item_name: b.name }))
         }))
       }
@@ -695,9 +709,25 @@ export default class GalaxyScene extends Phaser.Scene {
           .filter(s => faction.tech_tier >= s.tier)
           .map(s => {
             const can = !queueFull && faction.credits >= s.cost
-            return makeBtn(`${s.label}  ${s.cost} Credits`, can, () =>
+            return makeBtn(`${s.label}  ${s.cost}cr`, can, () =>
               this.socket?.send({ type: 'build', planet_id: planet.id, item_type: 'ship', item_name: s.name }))
           }))
+      }
+
+      // Level-up button
+      if (planet.level < 5) {
+        const LEVEL_UP_COSTS = { 1: 300, 2: 600, 3: 1200, 4: 2400 }
+        const lvCost = LEVEL_UP_COSTS[planet.level]
+        if (lvCost) {
+          const alreadyQueued = queue.some(q => q.type === 'level_up')
+          const canLvl = !queueFull && !alreadyQueued && faction.credits >= lvCost
+          section('UPGRADE')
+          const lvBtn = makeBtn(`Level Up → ${planet.level + 1}  ${lvCost}cr`, canLvl, () =>
+            this.socket?.send({ type: 'build', planet_id: planet.id, item_type: 'level_up', item_name: 'level_up' }))
+          lvBtn.setPosition(RX, ry)
+          dash.add(lvBtn)
+          ry += 40
+        }
       }
     }
 
