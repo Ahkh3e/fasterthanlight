@@ -207,7 +207,7 @@ class GameApp {
     const keys = {}
     let panInterval = null
     
-    // Enhanced zoom controls with K/L (screen center zoom with constant speed)
+    // Enhanced zoom controls with C/V (screen center zoom with constant speed)
     let zoomInterval = null
     let currentZoomDirection = null
     
@@ -244,11 +244,11 @@ class GameApp {
     window.addEventListener('keydown', (e) => {
       const key = e.key.toLowerCase()
       
-      if (key === 'k' || key === 'l') {
+      if (key === 'c' || key === 'v') {
         e.preventDefault() // Prevent browser zoom
         
         if (!zoomInterval) {
-          currentZoomDirection = (key === 'k') ? 'out' : 'in'
+          currentZoomDirection = (key === 'c') ? 'out' : 'in'
           updateSmoothZoom() // Immediate response
           
           // Start smooth zoom interval
@@ -288,7 +288,7 @@ class GameApp {
     window.addEventListener('keyup', (e) => {
       const key = e.key.toLowerCase()
       
-      if ((key === 'k' || key === 'l') && zoomInterval) {
+      if ((key === 'c' || key === 'v') && zoomInterval) {
         clearInterval(zoomInterval)
         zoomInterval = null
         currentZoomDirection = null
@@ -657,7 +657,7 @@ class GameApp {
         },
         body: JSON.stringify({
           seed: null,
-          planet_count: 30
+          planet_count: 120
         })
       })
 

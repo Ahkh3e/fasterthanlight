@@ -69,7 +69,7 @@ export default class MenuScene extends Phaser.Scene {
       const res = await fetch(`${API_URL}/game/new`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ planet_count: 30 }),
+        body: JSON.stringify({ planet_count: 120 }),
       })
       if (!res.ok) throw new Error(`Server error ${res.status}`)
       const { game_id, seed } = await res.json()

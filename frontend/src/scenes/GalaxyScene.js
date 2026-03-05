@@ -72,6 +72,8 @@ export default class GalaxyScene extends Phaser.Scene {
     this.events.on('planet-select', (id) => this._onPlanetSelect(id))
     this.events.on('selection-changed', (sel) => this._onSelectionChanged(sel))
     this.input.keyboard.on('keydown-ESC', () => this._onPlanetSelect(null))
+    this.input.keyboard.on('keydown-C', () => this._zoomByKey(-1))
+    this.input.keyboard.on('keydown-V', () => this._zoomByKey(1))
 
     this.socket = new SocketClient(`${WS_URL}/ws/${this.gameId}`)
     this.socket.onOpen    = () => this._setStatus('Connected', '#00ff88')
@@ -125,6 +127,13 @@ export default class GalaxyScene extends Phaser.Scene {
         cam.scrollY += e.deltaY / cam.zoom
       }
     }, { passive: false })
+  }
+
+  _zoomByKey(direction) {
+    const cam = this.cameras.main
+    const factor = direction > 0 ? 1.06 : 0.94
+    cam.zoom = Phaser.Math.Clamp(cam.zoom * factor, ZOOM_MIN, ZOOM_MAX)
+    this._repositionHUD()
   }
 
   // ── HUD ────────────────────────────────────────────────────────────────────
@@ -258,7 +267,7 @@ export default class GalaxyScene extends Phaser.Scene {
       this.gameState = msg.data
       this.inputHandler.setGameState(this.gameState)
       this._buildGalaxy()
-      this._setStatus(`Tick ${msg.data.tick}`, '#00ff88')
+      this._setStatus(this._tickStatusText(msg.data.tick), '#00ff88')
     } else if (msg.type === 'tick') {
       if (!this.gameState) return
       this._applyDelta(msg.data)
@@ -331,7 +340,7 @@ export default class GalaxyScene extends Phaser.Scene {
       this._handleGameEvents(delta.events)
     }
 
-    this.tickText.setText(`Tick ${delta.tick}`)
+    this.tickText.setText(this._tickStatusText(delta.tick))
 
     // Fade out notification
     if (this._notifTimer > 0) {
@@ -761,6 +770,14 @@ export default class GalaxyScene extends Phaser.Scene {
 
   _setStatus(msg, colour = '#334455') {
     this.tickText?.setText(msg).setColor(colour)
+  }
+
+  _tickStatusText(tick) {
+    if (!this.gameState) return `Tick ${tick}`
+    const pid = this.gameState.player_faction_id
+    const planets = this.gameState.planets ?? []
+    const explored = planets.filter(p => (p.explored_by ?? []).includes(pid)).length
+    return `Tick ${tick}  |  Systems ${explored}/${planets.length}`
   }
 
   _drawStarfield() {

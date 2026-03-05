@@ -83,12 +83,12 @@ export default class InputHandlerCanvas {
   handleKeyDown(e) {
     const key = e.key.toLowerCase()
     
-    // Enhanced zoom controls with K/L (screen center zoom with constant speed)
-    if (key === 'k' || key === 'l') {
+    // Enhanced zoom controls with C/V (screen center zoom with constant speed)
+    if (key === 'c' || key === 'v') {
       e.preventDefault() // Prevent browser zoom
       
       if (!this.gameApp.zoomInterval) {
-        this.gameApp.currentZoomDirection = (key === 'k') ? 'out' : 'in'
+        this.gameApp.currentZoomDirection = (key === 'c') ? 'out' : 'in'
         this.gameApp.updateSmoothZoom() // Immediate response
         
         // Start smooth zoom interval
@@ -124,7 +124,7 @@ export default class InputHandlerCanvas {
   handleKeyUp(e) {
     const key = e.key.toLowerCase()
     
-    if ((key === 'k' || key === 'l') && this.gameApp.zoomInterval) {
+    if ((key === 'c' || key === 'v') && this.gameApp.zoomInterval) {
       clearInterval(this.gameApp.zoomInterval)
       this.gameApp.zoomInterval = null
       this.gameApp.currentZoomDirection = null

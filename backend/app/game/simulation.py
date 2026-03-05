@@ -12,15 +12,21 @@ from game.config import (
     ORBIT_SPEED, BASE_INCOME_PER_PLANET, EXTRACTOR_INCOME_BONUS, POPULATION_INCOME_BONUS,
     LEVEL_INCOME_BONUS, TRADE_HUB_INCOME_BONUS,
     BASE_STORAGE_CAPACITY, EXTRACTOR_STORAGE_BONUS, SHIPYARD_STORAGE_BONUS, PLANET_STORAGE_BONUS,
-    RESEARCH_PER_LAB, TECH_THRESHOLDS, SHIP_STATS, ORBIT_OFFSET, AUTO_FLEET_INTERVAL,
+    RESEARCH_PER_LAB, TECH_THRESHOLDS, SHIP_STATS, AUTO_FLEET_INTERVAL,
     BUILDING_COSTS, SHIP_COSTS, LEVEL_UP_TICKS, TECH_BONUSES,
 )
 from game.state import GameState, Planet, Ship, Faction
+from game.orbits import (
+    orbit_layout_for_index,
+    orbit_phase_for_planet,
+    orbit_radius_for_ring,
+    orbit_ring_for_index,
+)
 
 
 def tick(state: GameState, planet_map: dict, ship_map: dict, faction_map: dict) -> None:
     """Run one simulation tick. Mutates state in place."""
-    _update_orbits(state.ships, planet_map)
+    _update_orbits(state.ships, planet_map, state.tick)
     _recover_fuel(state.ships, planet_map)
     _update_sensors(state.ships, state.planets)
     _recompute_planet_ships(state.planets, state.ships, planet_map)
@@ -32,16 +38,42 @@ def tick(state: GameState, planet_map: dict, ship_map: dict, faction_map: dict) 
 
 # ── Orbits ─────────────────────────────────────────────────────────────────────
 
-def _update_orbits(ships: list[Ship], planet_map: dict) -> None:
+def _update_orbits(ships: list[Ship], planet_map: dict, tick: int) -> None:
+    by_planet: dict[str, list[Ship]] = {}
     for ship in ships:
-        if ship.state != "orbiting" or ship.target_planet is None:
-            continue
-        planet = planet_map.get(ship.target_planet)
+        if ship.state == "orbiting" and ship.target_planet:
+            by_planet.setdefault(ship.target_planet, []).append(ship)
+
+    for planet_id, orbiting in by_planet.items():
+        planet = planet_map.get(planet_id)
         if planet is None:
             continue
-        ship.orbit_angle += ORBIT_SPEED
-        ship.x = round(planet.x + math.cos(ship.orbit_angle) * ship.orbit_radius, 2)
-        ship.y = round(planet.y + math.sin(ship.orbit_angle) * ship.orbit_radius, 2)
+
+        ordered = sorted(orbiting, key=lambda s: s.id)
+        rings: dict[int, list[Ship]] = {}
+        for idx, ship in enumerate(ordered):
+            ring_idx = orbit_ring_for_index(idx)
+            rings.setdefault(ring_idx, []).append(ship)
+
+        spin_phase = tick * ORBIT_SPEED
+        base_phase = orbit_phase_for_planet(planet.id)
+
+        for ring_idx, ring_ships in rings.items():
+            count = len(ring_ships)
+            if count <= 0:
+                continue
+
+            radius = orbit_radius_for_ring(planet, ring_idx)
+            step = 2 * math.pi / count
+            ring_phase = (step * 0.5) if (ring_idx % 2 == 1) else 0.0
+            start = (base_phase + spin_phase + ring_phase) % (2 * math.pi)
+
+            for i, ship in enumerate(ring_ships):
+                angle = (start + i * step) % (2 * math.pi)
+                ship.orbit_radius = radius
+                ship.orbit_angle = angle
+                ship.x = round(planet.x + math.cos(angle) * radius, 2)
+                ship.y = round(planet.y + math.sin(angle) * radius, 2)
 
 
 # ── Sensor sweep ───────────────────────────────────────────────────────────────
@@ -135,7 +167,7 @@ def _harvest_resources(
 # ── Ship spawning helper ───────────────────────────────────────────────────────
 
 def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
-                angle: float = 0.0, faction=None) -> None:
+                faction=None) -> None:
     """Create a ship in orbit around planet and emit a ship_spawned event.
 
     Applies TECH_BONUSES HP multiplier based on faction.tech_tier.
@@ -146,7 +178,8 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
     tier   = faction.tech_tier if faction else 1
     bonus  = TECH_BONUSES.get(tier, TECH_BONUSES[1])
     hp     = round(float(stats["hp"]) * bonus["hp"], 1)
-    orbit_r = planet.radius + ORBIT_OFFSET
+    orbiting_here = sum(1 for s in state.ships if s.state == "orbiting" and s.target_planet == planet.id)
+    orbit_r, angle = orbit_layout_for_index(planet, orbiting_here)
     state.ship_id_counter += 1
     new_ship = Ship(
         id=f"s-{state.ship_id_counter:04d}",
@@ -245,12 +278,10 @@ def _auto_fleet(state: GameState, faction_map: dict) -> None:
             continue
 
         count = planet.level
-        angle_step = (2 * math.pi / count) if count > 1 else 0.0
-
         ship_type = "fighter"  # auto-fleet always spawns basic fighters
 
-        for j in range(count):
-            _spawn_ship(state, planet, ship_type, planet.owner, angle=j * angle_step, faction=faction)
+        for _ in range(count):
+            _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
 
 
 # ── Tech tier advancement ──────────────────────────────────────────────────────

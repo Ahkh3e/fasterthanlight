@@ -109,7 +109,10 @@ G                      = 500.0
 INFLUENCE_RADIUS_FACTOR = 8
 ARRIVAL_THRESHOLD       = 20
 ORBIT_SPEED             = 0.015   # radians per tick
-ORBIT_OFFSET            = 15      # units above planet radius
+ORBIT_OFFSET            = 24      # units above planet radius
+ORBIT_RING_LEVELS       = 3       # fixed ring count (kept for compatibility)
+ORBIT_RING_PATTERN      = (8, 12, 16)  # inner→outer capacities before compression
+ORBIT_RING_STEP         = 14      # spacing between orbit rings
 
 # ── Ship stats: hp, damage, fire_rate (ticks), speed, sensor_range, fuel_cost ─
 SHIP_STATS = {

@@ -52,7 +52,11 @@ async def new_game(req: NewGameRequest):
     games[game_id]       = state
     connections[game_id] = []
     asyncio.create_task(game_loop(game_id))
-    return {"game_id": game_id, "seed": state.seed}
+    return {
+        "game_id": game_id,
+        "seed": state.seed,
+        "planet_count": len(state.planets),
+    }
 
 
 @app.get("/game/{game_id}/state")

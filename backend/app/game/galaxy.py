@@ -13,14 +13,15 @@ from game.config import (
     GALAXY_WIDTH, GALAXY_HEIGHT, MIN_PLANET_SEPARATION, MAX_LANE_LENGTH,
     PLANET_RADIUS_MIN, PLANET_RADIUS_MAX, K_NEAREST_LANES,
     PLANET_ADJ, PLANET_NOUN, FACTION_PREFIX, FACTION_NAME, FACTION_COLOURS,
-    ORBIT_OFFSET, SHIP_STATS,
+    SHIP_STATS,
     PLAYER_START_CREDITS, NPC_START_CREDITS,
     AI_DECISION_INTERVAL,
 )
+from game.orbits import orbit_layout_for_index
 from game.state import Planet, Ship, Faction
 
 
-def generate(seed: int, planet_count: int = 30):
+def generate(seed: int, planet_count: int = 120):
     rng = random.Random(seed)
 
     planets  = _place_planets(rng, planet_count)
@@ -49,6 +50,25 @@ def _place_planets(rng: random.Random, count: int) -> list[Planet]:
         if all(math.dist((x, y), p) >= MIN_PLANET_SEPARATION for p in positions):
             positions.append((x, y))
         attempts += 1
+
+    # Fallback: if strict separation sampling runs out of attempts, fill remaining
+    # planets using best-candidate placement so we always hit requested count.
+    while len(positions) < count:
+        best_pos: tuple[float, float] | None = None
+        best_dist = -1.0
+        for _ in range(120):
+            x = rng.uniform(margin, GALAXY_WIDTH  - margin)
+            y = rng.uniform(margin, GALAXY_HEIGHT - margin)
+            if not positions:
+                best_pos = (x, y)
+                break
+            nearest = min(math.dist((x, y), p) for p in positions)
+            if nearest > best_dist:
+                best_dist = nearest
+                best_pos = (x, y)
+        if best_pos is None:
+            break
+        positions.append(best_pos)
 
     planets = []
     used_names: set[str] = set()
@@ -299,8 +319,7 @@ def _create_starting_ships(
     def spawn(ship_type: str, owner: str, planet: Planet) -> Ship:
         nonlocal counter
         stats       = SHIP_STATS[ship_type]
-        angle       = rng.uniform(0, 2 * math.pi)
-        orbit_r     = planet.radius + ORBIT_OFFSET
+        orbit_r, angle = orbit_layout_for_index(planet, len(planet.ships))
         ship = Ship(
             id=f"s-{counter:04d}",
             type=ship_type,
