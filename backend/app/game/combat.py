@@ -34,6 +34,10 @@ ORBITAL_CANNON_DAMAGE   = 30
 ORBITAL_CANNON_RANGE    = 500
 DEFENSE_PLATFORM_TICKS  = 20   # ticks between platform shots
 
+# Spatial grid for O(n) engagement detection instead of O(n²)
+ENGAGE_GRID_SIZE = 500.0          # cell size ≥ largest attack range (dreadnought=350)
+ENGAGE_GRID_INV  = 1.0 / ENGAGE_GRID_SIZE
+
 
 def combat_tick(
     state: GameState, planet_map: dict, ship_map: dict, faction_map: dict
@@ -64,7 +68,17 @@ def _update_engagements(ships: list[Ship], ship_map: dict) -> None:
 
     Moving ships acquire a combat target but keep moving toward their destination
     (return fire without interrupting the movement order).
+
+    Uses a spatial grid so each ship only checks nearby cells — O(n) instead of O(n²).
     """
+    # Build spatial grid of candidate targets (exclude retreating)
+    inv = ENGAGE_GRID_INV
+    grid: dict[tuple[int, int], list[Ship]] = {}
+    for s in ships:
+        if s.state != "retreating":
+            key = (int(s.x * inv), int(s.y * inv))
+            grid.setdefault(key, []).append(s)
+
     _attack_range = SHIP_ATTACK_RANGE
     for ship in ships:
         ship_state = ship.state
@@ -84,25 +98,35 @@ def _update_engagements(ships: list[Ship], ship_map: dict) -> None:
         ship_x, ship_y = ship.x, ship.y
         ship_owner = ship.owner
 
-        for other in ships:
-            if other.owner == ship_owner or other.id == ship.id:
-                continue
-            if other.state == "retreating":
-                continue   # don't chase retreating ships
-
-            dx = other.x - ship_x
-            dy = other.y - ship_y
-
-            if dx * dx + dy * dy <= attack_range_sq:
-                ship.target_ship = other.id
-                if ship_state != "moving":
-                    # Full combat mode: stop and fight
-                    ship.state       = "attacking"
-                    ship.target_planet = None
-                    ship.target_x    = None
-                    ship.target_y    = None
-                # moving ships: keep target_x/y/target_planet so they continue traveling
+        # Query 3×3 neighbourhood in grid
+        cx = int(ship_x * inv)
+        cy = int(ship_y * inv)
+        found = False
+        for gx in (cx - 1, cx, cx + 1):
+            if found:
                 break
+            for gy in (cy - 1, cy, cy + 1):
+                cell = grid.get((gx, gy))
+                if not cell:
+                    continue
+                for other in cell:
+                    if other.owner == ship_owner or other.id == ship.id:
+                        continue
+                    if other.state == "retreating":
+                        continue
+
+                    dx = other.x - ship_x
+                    dy = other.y - ship_y
+
+                    if dx * dx + dy * dy <= attack_range_sq:
+                        ship.target_ship = other.id
+                        if ship_state != "moving":
+                            ship.state       = "attacking"
+                            ship.target_planet = None
+                            ship.target_x    = None
+                            ship.target_y    = None
+                        found = True
+                        break
 
 
 # ── Attacking ship movement ────────────────────────────────────────────────────

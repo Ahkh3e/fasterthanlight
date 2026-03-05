@@ -19,7 +19,7 @@ from game.physics import physics_tick
 from game.simulation import tick as simulation_tick
 from game.combat import combat_tick
 from game.ai import ai_tick
-from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, PLAYER_START_CREDITS
+from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, SHIP_TIER_REQ, PLAYER_START_CREDITS
 
 logger = logging.getLogger("ftl")
 
@@ -447,6 +447,9 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
         elif item_type == "ship":
             cost = SHIP_COSTS.get(item_name)
             if cost is None or "shipyard" not in planet.buildings:
+                return
+            min_tier = SHIP_TIER_REQ.get(item_name, 1)
+            if faction.tech_tier < min_tier:
                 return
             if faction.credits < cost:
                 return

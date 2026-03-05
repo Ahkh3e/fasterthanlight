@@ -29,13 +29,48 @@ SWARM_COH_RADIUS = 200.0
 SWARM_COH_WEIGHT = 0.28
 SWARM_GOAL_WEIGHT = 1.0
 
+# Spatial grid for O(n) swarm lookups instead of O(n²)
+SWARM_GRID_SIZE = 200.0          # cell size ≥ largest interaction radius
+SWARM_GRID_INV  = 1.0 / SWARM_GRID_SIZE
+MAX_SWARM_NEIGHBORS = 16         # cap neighbours to avoid chaotic forces in large blobs
+
+
+def _build_swarm_grid(ships: list[Ship]) -> dict[tuple[int, int], list[Ship]]:
+    """Bucket moving ships into a spatial grid for fast neighbour queries."""
+    grid: dict[tuple[int, int], list[Ship]] = {}
+    inv = SWARM_GRID_INV
+    for s in ships:
+        key = (int(s.x * inv), int(s.y * inv))
+        grid.setdefault(key, []).append(s)
+    return grid
+
+
+def _nearby_swarm(grid: dict[tuple[int, int], list[Ship]], ship: Ship) -> list[Ship]:
+    """Return ships in the 3×3 neighbourhood of *ship*'s grid cell."""
+    inv = SWARM_GRID_INV
+    cx = int(ship.x * inv)
+    cy = int(ship.y * inv)
+    result: list[Ship] = []
+    for dx in (-1, 0, 1):
+        for dy in (-1, 0, 1):
+            cell = grid.get((cx + dx, cy + dy))
+            if cell:
+                result.extend(cell)
+    return result
+
 
 def physics_tick(ships: list[Ship], planets: list[Planet], planet_map: dict) -> None:
-    # Pre-partition moving/retreating ships by owner for O(n) swarm instead of O(n²)
+    # Pre-partition moving/retreating ships by owner for swarm behaviour
     moving_by_owner: dict[str, list[Ship]] = {}
     for s in ships:
         if s.state in ("moving", "retreating"):
             moving_by_owner.setdefault(s.owner, []).append(s)
+
+    # Build one spatial grid per owner for O(k) neighbour queries instead of O(n²)
+    swarm_grids: dict[str, dict[tuple[int, int], list[Ship]]] = {}
+    for owner, ms in moving_by_owner.items():
+        if len(ms) > 1:
+            swarm_grids[owner] = _build_swarm_grid(ms)
 
     for ship in ships:
         if ship.state == "orbiting":
@@ -44,8 +79,9 @@ def physics_tick(ships: list[Ship], planets: list[Planet], planet_map: dict) -> 
         if ship.state == "idle":
             _tick_idle(ship, planets, planet_map, ships)
         elif ship.state in ("moving", "retreating"):
-            _tick_moving(ship, planets, planet_map,
-                         moving_by_owner.get(ship.owner), ships)
+            grid = swarm_grids.get(ship.owner)
+            nearby = _nearby_swarm(grid, ship) if grid else moving_by_owner.get(ship.owner)
+            _tick_moving(ship, planets, planet_map, nearby, ships)
         # "attacking" movement handled in combat.py (needs ship_map)
 
 
@@ -104,12 +140,15 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
     coh_x = coh_y = 0.0
     align_n = 0
     coh_n = 0
+    _max_neighbors = MAX_SWARM_NEIGHBORS
+    neighbor_count = 0
 
     if moving_ships:
         for other in moving_ships:
             if other.id == ship.id:
                 continue
-            # owner filter removed: moving_ships already pre-filtered by owner
+            if neighbor_count >= _max_neighbors:
+                break
 
             odx = ship.x - other.x
             ody = ship.y - other.y
@@ -132,6 +171,7 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
                 coh_x += other.x
                 coh_y += other.y
                 coh_n += 1
+                neighbor_count += 1
 
     if align_n > 0:
         align_x /= align_n

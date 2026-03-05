@@ -648,12 +648,12 @@ export default class GalaxyScene extends Phaser.Scene {
       const queueFull = queue.length >= 2
 
       const BLDGS = [
-        { name: 'extractor',        label: 'Extractor',    cost: 100 },
-        { name: 'shipyard',         label: 'Shipyard',     cost: 200 },
-        { name: 'research_lab',     label: 'Lab',          cost: 150 },
-        { name: 'defense_platform', label: 'Defense',      cost: 250 },
-        { name: 'trade_hub',        label: 'Trade Hub',    cost: 350 },
-        { name: 'orbital_cannon',   label: 'Cannon',       cost: 450 },
+        { name: 'extractor',        label: 'Extractor',    cost: 100, minLevel: 1 },
+        { name: 'shipyard',         label: 'Shipyard',     cost: 200, minLevel: 1 },
+        { name: 'research_lab',     label: 'Lab',          cost: 150, minLevel: 1 },
+        { name: 'defense_platform', label: 'Defense',      cost: 250, minLevel: 1 },
+        { name: 'trade_hub',        label: 'Trade Hub',    cost: 350, minLevel: 2 },
+        { name: 'orbital_cannon',   label: 'Cannon',       cost: 450, minLevel: 3 },
       ]
       const SHIPS = [
         { name: 'fighter',     label: 'Fighter',     cost: 50,  tier: 1 },
@@ -693,7 +693,7 @@ export default class GalaxyScene extends Phaser.Scene {
         ry += 40
       }
 
-      const availBldgs = BLDGS.filter(b => !planet.buildings.includes(b.name))
+      const availBldgs = BLDGS.filter(b => !planet.buildings.includes(b.name) && planet.level >= b.minLevel)
       if (availBldgs.length > 0) {
         section('CONSTRUCT')
         layoutBtns(availBldgs.map(b => {

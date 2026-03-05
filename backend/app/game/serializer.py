@@ -20,13 +20,26 @@ def serialize_state(state: GameState) -> dict:
 def serialize_delta(state: GameState) -> dict:
     """Partial update pushed each tick.
 
-    Includes: tick counter, status, all ship positions, faction resource totals,
-    planet ownership snapshots, and combat events.
+    Includes: tick counter, status, ship updates (only moving/changing ships
+    are sent each tick; orbiting ships are sent once per second to save bandwidth),
+    faction resource totals, planet ownership snapshots, and combat events.
     """
+    # Always send ships that are actively changing state
+    # Orbiting/idle ships only need periodic sync (~1 Hz)
+    full_sync = (state.tick % 20 == 0)
+    if full_sync:
+        ship_deltas = [_ship_delta(s) for s in state.ships]
+    else:
+        ship_deltas = [
+            _ship_delta(s) for s in state.ships
+            if s.state in ("moving", "attacking", "retreating", "idle")
+        ]
+
     return {
         "tick":     state.tick,
         "status":   state.status,
-        "ships":    [_ship_delta(s) for s in state.ships],
+        "ships":    ship_deltas,
+        "ships_partial": not full_sync,
         "factions": [_faction_resources(f) for f in state.factions],
         "planets":  [_planet_delta(p) for p in state.planets],
         "events":   list(state.tick_events),

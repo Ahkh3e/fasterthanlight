@@ -126,13 +126,14 @@ def _planet_from_dict(d: dict) -> Planet:
 
 
 def _faction_from_dict(d: dict) -> Faction:
-    # Convert old currency system to new credits system for backward compatibility
-    old_minerals = d.get("minerals", 500.0)
-    old_energy = d.get("energy", 0.0)
-    old_rare = d.get("rare", 0.0)
-    
-    # Convert to credits (weighted average)
-    credits = old_minerals * 2.0 + old_energy * 1.5 + old_rare * 0.5
+    # Use saved credits if present; fall back to old 3-resource conversion for legacy saves
+    if "credits" in d:
+        credits = d["credits"]
+    else:
+        old_minerals = d.get("minerals", 500.0)
+        old_energy = d.get("energy", 0.0)
+        old_rare = d.get("rare", 0.0)
+        credits = old_minerals * 2.0 + old_energy * 1.5 + old_rare * 0.5
     
     return Faction(
         id=d["id"], name=d["name"], archetype=d["archetype"],
