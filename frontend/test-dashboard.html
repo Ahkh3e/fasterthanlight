@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard Zoom Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #fff;
+            font-family: monospace;
+            overflow: hidden;
+        }
+        
+        #game-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 20, 30, 0.9);
+            padding: 15px;
+            border: 1px solid #00ffff;
+            border-radius: 4px;
+            z-index: 1000;
+        }
+        
+        .control-group {
+            margin-bottom: 10px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            color: #00ffff;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+        }
+        
+        button {
+            background: #00ffff;
+            color: #000;
+            border: none;
+            padding: 8px 16px;
+            cursor: pointer;
+            font-family: monospace;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        
+        button:hover {
+            background: #fff;
+        }
+        
+        #zoom-display {
+            font-size: 18px;
+            color: #00ffff;
+            margin-bottom: 10px;
+        }
+        
+        /* Simulated dashboard styles */
+        .dashboard {
+            position: absolute;
+            background: rgba(5, 15, 26, 0.97);
+            border: 1px solid #1a4060;
+            border-radius: 4px;
+            transform-origin: top left;
+            box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
+            transition: transform 0.1s ease;
+        }
+        
+        .dashboard-header {
+            background: #050f1a;
+            padding: 10px;
+            border-bottom: 1px solid #1a4060;
+            text-align: center;
+            color: #00ffff;
+            font-weight: bold;
+        }
+        
+        .dashboard-content {
+            padding: 15px;
+            font-size: 12px;
+            line-height: 1.5;
+        }
+        
+        .dashboard-stats {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-item {
+            background: rgba(0, 0, 0, 0.3);
+            padding: 8px;
+            border-radius: 3px;
+            border-left: 3px solid #00ffff;
+        }
+        
+        .overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.72);
+            z-index: 1;
+        }
+        
+        .center-indicator {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: red;
+            border-radius: 50%;
+            transform: translate(-5px, -5px);
+            z-index: 5;
+        }
+        
+        .screen-center {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 20px;
+            border: 2px solid #ff00ff;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 2000;
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container">
+        <div class="screen-center"></div>
+        <div id="center-indicator" class="center-indicator"></div>
+        
+        <!-- Test dashboard -->
+        <div id="test-dashboard" class="dashboard" style="display: none;">
+            <div class="overlay"></div>
+            <div class="dashboard-header">PLANET DASHBOARD</div>
+            <div class="dashboard-content">
+                <div class="dashboard-stats">
+                    <div class="stat-item">Population: 1,234</div>
+                    <div class="stat-item">Defense: 45%</div>
+                    <div class="stat-item">Resource Rate: 2.5/s</div>
+                    <div class="stat-item">Orbiting: 8 ships</div>
+                </div>
+                <div style="margin-top: 10px; color: #888;">
+                    This dashboard should be centered on screen regardless of zoom level.
+                    <br><br>
+                    Current behavior: Dashboard position changes with zoom.
+                    <br>
+                    Expected behavior: Dashboard stays centered on screen.
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="controls">
+        <div id="zoom-display">Zoom: 1.00</div>
+        
+        <div class="control-group">
+            <label>Camera Zoom</label>
+            <input type="range" id="zoom-slider" min="0.25" max="2.5" step="0.01" value="1.0">
+        </div>
+        
+        <div class="control-group">
+            <label>Screen Width</label>
+            <input type="range" id="width-slider" min="800" max="1920" step="10" value="1200">
+        </div>
+        
+        <div class="control-group">
+            <label>Screen Height</label>
+            <input type="range" id="height-slider" min="600" max="1080" step="10" value="800">
+        </div>
+        
+        <button id="toggle-dashboard">Toggle Dashboard</button>
+        <button id="reset-zoom">Reset Zoom</button>
+        <button id="center-indicator-btn">Show Center</button>
+        
+        <div style="margin-top: 15px; font-size: 12px; color: #666;">
+            <div>Screen Center: Red dot should align with purple crosshair</div>
+            <div>Dashboard Position: Should stay centered regardless of zoom</div>
+        </div>
+    </div>
+
+    <script>
+        const gameContainer = document.getElementById('game-container');
+        const dashboard = document.getElementById('test-dashboard');
+        const centerIndicator = document.getElementById('center-indicator');
+        const zoomDisplay = document.getElementById('zoom-display');
+        
+        const zoomSlider = document.getElementById('zoom-slider');
+        const widthSlider = document.getElementById('width-slider');
+        const heightSlider = document.getElementById('height-slider');
+        
+        let currentZoom = parseFloat(zoomSlider.value);
+        let dashboardOpen = false;
+        
+        // Initialize
+        updateScreenSize();
+        updateZoom();
+        
+        // Event listeners
+        zoomSlider.addEventListener('input', (e) => {
+            currentZoom = parseFloat(e.target.value);
+            updateZoom();
+        });
+        
+        widthSlider.addEventListener('input', updateScreenSize);
+        heightSlider.addEventListener('input', updateScreenSize);
+        
+        document.getElementById('toggle-dashboard').addEventListener('click', toggleDashboard);
+        document.getElementById('reset-zoom').addEventListener('click', () => {
+            zoomSlider.value = 1.0;
+            currentZoom = 1.0;
+            updateZoom();
+        });
+        
+        document.getElementById('center-indicator-btn').addEventListener('click', () => {
+            centerIndicator.style.display = centerIndicator.style.display === 'none' ? 'block' : 'none';
+        });
+        
+        // Functions
+        function updateScreenSize() {
+            const width = parseInt(widthSlider.value);
+            const height = parseInt(heightSlider.value);
+            gameContainer.style.width = width + 'px';
+            gameContainer.style.height = height + 'px';
+            gameContainer.style.margin = '0 auto';
+            gameContainer.style.border = '2px solid #333';
+            
+            if (dashboardOpen) {
+                positionDashboard(width, height, currentZoom);
+            }
+        }
+        
+        function updateZoom() {
+            zoomDisplay.textContent = `Zoom: ${currentZoom.toFixed(2)}`;
+            
+            // Update center indicator position
+            const rect = gameContainer.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + rect.height / 2;
+            centerIndicator.style.left = centerX + 'px';
+            centerIndicator.style.top = centerY + 'px';
+            
+            if (dashboardOpen) {
+                positionDashboard(rect.width, rect.height, currentZoom);
+            }
+        }
+        
+        function toggleDashboard() {
+            dashboardOpen = !dashboardOpen;
+            if (dashboardOpen) {
+                const rect = gameContainer.getBoundingClientRect();
+                dashboard.style.display = 'block';
+                positionDashboard(rect.width, rect.height, currentZoom);
+            } else {
+                dashboard.style.display = 'none';
+            }
+        }
+        
+        function positionDashboard(width, height, zoom) {
+            // Current implementation (problematic)
+            const PW = Math.min(940, width - 40);
+            const PH = Math.min(580, height - 40);
+            const px = (width - PW) / 2;
+            const py = (height - PH) / 2;
+            
+            // Apply scaling (this is the issue)
+            const invZ = 1 / zoom;
+            
+            dashboard.style.left = px + 'px';
+            dashboard.style.top = py + 'px';
+            dashboard.style.width = PW + 'px';
+            dashboard.style.height = PH + 'px';
+            dashboard.style.transform = `scale(${invZ})`;
+            
+            console.log(`Dashboard positioned at (${px}, ${py}) with scale ${invZ}`);
+            console.log(`Container: ${width}x${height}, Dashboard: ${PW}x${PH}`);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            if (dashboardOpen) {
+                const rect = gameContainer.getBoundingClientRect();
+                positionDashboard(rect.width, rect.height, currentZoom);
+            }
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+agent/
+backend/app/saves/
+frontend/node_modules/
+frontend/dist/
+.claude/
+.DS_Store

@@ -1,0 +1,644 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Game Architecture - Isolated Game Window</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #0b0d12;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            overflow: hidden;
+            height: 100vh;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+
+        /* UI Layer - Fixed, never moves */
+        .ui-layer {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none; /* Let clicks pass through to game */
+            z-index: 1000;
+        }
+
+        /* HUD Elements - Fixed positions */
+        .hud-panel {
+            position: absolute;
+            pointer-events: auto;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            padding: 16px;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+            transition: all 0.2s ease;
+        }
+
+        .hud-panel:hover {
+            background: rgba(15, 23, 42, 0.9);
+            border-color: rgba(255, 255, 255, 0.15);
+            transform: translateY(-1px);
+            box-shadow: 0 6px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        .top-right {
+            top: 20px;
+            right: 20px;
+        }
+
+        .bottom-left {
+            bottom: 20px;
+            left: 20px;
+        }
+
+        .bottom-right {
+            bottom: 20px;
+            right: 20px;
+        }
+
+        /* Game Container - Only this moves and zooms */
+        .game-container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden; /* Clip game content */
+            z-index: 1;
+        }
+
+        /* Crosshair - Fixed center reference */
+        .crosshair {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            width: 60px;
+            height: 60px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 1500;
+        }
+
+        .crosshair-center {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 4px;
+            height: 4px;
+            background: #00ffff;
+            transform: translate(-50%, -50%);
+            border-radius: 50%;
+            opacity: 0.6;
+        }
+
+        .crosshair-line-horizontal {
+            position: absolute;
+            top: 50%;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: #00ffff;
+            transform: translateY(-50%);
+            opacity: 0.3;
+        }
+
+        .crosshair-line-vertical {
+            position: absolute;
+            left: 50%;
+            top: 0;
+            bottom: 0;
+            width: 1px;
+            background: #00ffff;
+            transform: translateX(-50%);
+            opacity: 0.3;
+        }
+
+        /* Game Canvas - The actual game world */
+        .game-canvas {
+            position: absolute;
+            /* Transform applied here for pan/zoom */
+            transform-origin: 0 0;
+            will-change: transform;
+        }
+
+        /* Dashboard - Fixed overlay */
+        .dashboard-overlay {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 16px;
+            padding: 24px;
+            width: 800px;
+            height: 500px;
+            z-index: 2000;
+            display: none;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        /* Controls for testing */
+        .controls {
+            position: fixed;
+            top: 24px;
+            left: 24px;
+            background: rgba(15, 23, 42, 0.8);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            border-radius: 14px;
+            z-index: 3000;
+            pointer-events: auto;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+
+        button {
+            background: linear-gradient(135deg, #00f5ff, #00c2ff);
+            color: #000;
+            border: none;
+            padding: 10px 16px;
+            cursor: pointer;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            font-weight: 600;
+            font-size: 13px;
+            border-radius: 10px;
+            box-shadow: 0 4px 15px rgba(0, 245, 255, 0.3);
+            transition: all 0.2s ease;
+            margin-right: 8px;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 20px rgba(0, 245, 255, 0.4);
+            background: linear-gradient(135deg, #00e6ff, #00b8ff);
+        }
+
+        button:active {
+            transform: translateY(0);
+            box-shadow: 0 2px 10px rgba(0, 245, 255, 0.3);
+        }
+
+        .stat {
+            color: #00f5ff;
+            font-size: 13px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+    </style>
+</head>
+<body>
+    <!-- Cosmic nebula overlay -->
+    <div class="nebula-overlay"></div>
+
+    <!-- Game Container - Only this moves and zooms -->
+    <div class="game-container" id="game-container">
+        <canvas id="game-canvas" class="game-canvas"></canvas>
+    </div>
+
+    <!-- UI Layer - Fixed, never moves -->
+    <div class="ui-layer">
+        <!-- Top Right HUD -->
+        <div class="hud-panel top-right">
+            <div style="color: #e2e8f0; font-weight: 700; font-size: 16px; margin-bottom: 8px;">FASTER THAN LIGHT</div>
+            <div style="color: #94a3b8; font-size: 12px; margin-bottom: 12px;">Seed: 123456789 · GameID: abc123</div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button onclick="toggleDashboard()" style="padding: 8px 12px; font-size: 12px;">[ PLANET DASHBOARD ]</button>
+                <button onclick="saveGame()" style="padding: 8px 12px; font-size: 12px;">[ SAVE ]</button>
+                <button onclick="goToMenu()" style="padding: 8px 12px; font-size: 12px;">[ MENU ]</button>
+            </div>
+        </div>
+
+        <!-- Bottom Left Resources -->
+        <div class="hud-panel bottom-left">
+            <div style="color: #e2e8f0; font-size: 13px; font-weight: 600; margin-bottom: 6px;">
+                ⬡ 1250  ⚡ 845  ✦ 234  RP 45  T2
+            </div>
+            <div style="color: #94a3b8; font-size: 11px;">
+                Tick 1542
+            </div>
+        </div>
+
+        <!-- Bottom Right Selection Info -->
+        <div class="hud-panel bottom-right" style="width: 240px;">
+            <div style="color: #e2e8f0; font-size: 12px; font-weight: 600; margin-bottom: 8px;">5 selected  3× fighter  2× cruiser</div>
+            <div style="color: #94a3b8; font-size: 11px; margin-bottom: 8px; font-weight: 500;">Energy:</div>
+            <div style="display: flex; gap: 6px; margin-bottom: 10px;">
+                <button style="padding: 6px 10px; font-size: 11px;">20</button>
+                <button style="padding: 6px 10px; font-size: 11px;">40</button>
+                <button style="padding: 6px 10px; font-size: 11px;">60</button>
+                <button style="padding: 6px 10px; font-size: 11px;">80</button>
+                <button style="padding: 6px 10px; font-size: 11px;">100</button>
+            </div>
+            <button style="width: 100%; padding: 10px; font-weight: 600;">[ STOP ]</button>
+        </div>
+    </div>
+
+    <!-- Dashboard Overlay -->
+    <div class="dashboard-overlay" id="dashboard">
+        <div style="color: #00ffff; font-size: 18px; font-weight: bold; text-align: center; margin-bottom: 10px;">
+            ALPHA CENTAURI
+        </div>
+        <div style="color: #00ffff; font-size: 12px; margin-bottom: 15px;">Territory of Player 1</div>
+        
+        <!-- Left Column: Planet Visual -->
+        <div style="display: flex; gap: 20px;">
+            <div style="width: 260px; height: 200px; background: #000; border: 1px solid #333; position: relative;">
+                <!-- Planet visualization would go here -->
+                <div style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #5588bb; font-size: 14px;">
+                    [ PLANET VISUAL ]
+                </div>
+            </div>
+            
+            <!-- Stats -->
+            <div style="flex: 1;">
+                <div style="color: #3d5666; font-size: 11px; margin-bottom: 5px;">▲ Minerals: 2.5/s</div>
+                <div style="color: #3d5666; font-size: 11px; margin-bottom: 5px;">Population: 1,234</div>
+                <div style="color: #3d5666; font-size: 11px; margin-bottom: 5px;">Defense: 45%</div>
+                <div style="color: #3d5666; font-size: 11px; margin-bottom: 5px;">Level: 3 → 3 ships / 10s</div>
+                <div style="color: #3d5666; font-size: 11px;">Orbiting: 8 ships</div>
+            </div>
+        </div>
+
+        <!-- Right Column: Actions -->
+        <div style="margin-top: 20px; padding-top: 15px; border-top: 1px solid #1a4060;">
+            <div style="color: #1a5070; font-size: 10px; margin-bottom: 10px;">BUILDINGS</div>
+            <div style="color: #9ab0be; font-size: 11px; margin-bottom: 5px;">● Extractor</div>
+            <div style="color: #2a4455; font-size: 10px; margin-bottom: 15px;">+50% resource income from this planet</div>
+            
+            <div style="color: #1a5070; font-size: 10px; margin-bottom: 10px;">BUILD QUEUE (1/2)</div>
+            <div style="color: #7799aa; font-size: 11px; margin-bottom: 15px;">● Fighter  15s  [████████░░░░]</div>
+            
+            <div style="color: #1a5070; font-size: 10px; margin-bottom: 10px;">CONSTRUCT</div>
+            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                <button style="font-size: 11px; background: #7a9ab0;">[ Extractor  50m ]</button>
+                <button style="font-size: 11px; background: #7a9ab0;">[ Shipyard  80m 40e ]</button>
+                <button style="font-size: 11px; background: #7a9ab0;">[ Lab  60m 60e ]</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Crosshair - Fixed center reference -->
+    <div class="crosshair">
+        <div class="crosshair-center"></div>
+        <div class="crosshair-line-horizontal"></div>
+        <div class="crosshair-line-vertical"></div>
+    </div>
+
+    <!-- Controls -->
+    <div class="controls">
+        <div class="stat">Game Window Isolation Demo</div>
+        <div style="font-size: 12px; color: #666; margin-bottom: 10px;">
+            UI elements stay fixed while game window pans/zooms independently
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <button onclick="panLeft()">Pan Left</button>
+            <button onclick="panRight()">Pan Right</button>
+            <button onclick="panUp()">Pan Up</button>
+            <button onclick="panDown()">Pan Down</button>
+        </div>
+        
+        <div style="margin-bottom: 10px;">
+            <button onclick="zoomIn()">Zoom In</button>
+            <button onclick="zoomOut()">Zoom Out</button>
+            <button onclick="resetView()">Reset View</button>
+        </div>
+        
+        <div style="font-size: 12px;">
+            <div>Zoom: <span id="zoom-display">1.00</span></div>
+            <div>Position: <span id="pos-display">0, 0</span></div>
+        </div>
+    </div>
+
+    <script>
+        // Game State
+        const gameState = {
+            zoom: 1.0,
+            panX: 0,
+            panY: 0,
+            canvas: null,
+            ctx: null,
+            width: 0,
+            height: 0
+        };
+
+        // Initialize
+        function init() {
+            gameState.canvas = document.getElementById('game-canvas');
+            gameState.ctx = gameState.canvas.getContext('2d');
+            
+            // Set canvas size to match container
+            resizeCanvas();
+            window.addEventListener('resize', resizeCanvas);
+            
+            // Draw initial scene
+            drawGameWorld();
+        }
+
+        function resizeCanvas() {
+            const container = document.getElementById('game-container');
+            gameState.width = container.clientWidth;
+            gameState.height = container.clientHeight;
+            
+            gameState.canvas.width = gameState.width;
+            gameState.canvas.height = gameState.height;
+            
+            // Apply current transform
+            applyTransform();
+            drawGameWorld();
+        }
+
+        function applyTransform() {
+            const canvas = document.getElementById('game-canvas');
+            canvas.style.transform = `translate(${gameState.panX}px, ${gameState.panY}px) scale(${gameState.zoom})`;
+            
+            // Update display
+            document.getElementById('zoom-display').textContent = gameState.zoom.toFixed(2);
+            document.getElementById('pos-display').textContent = `${Math.round(gameState.panX)}, ${Math.round(gameState.panY)}`;
+        }
+
+        function drawGameWorld() {
+            const ctx = gameState.ctx;
+            const w = gameState.width;
+            const h = gameState.height;
+            
+            // Clear
+            ctx.fillStyle = '#000';
+            ctx.fillRect(0, 0, w, h);
+            
+            // Draw stars (background)
+            ctx.fillStyle = '#333';
+            for (let i = 0; i < 100; i++) {
+                ctx.fillRect(Math.random() * w, Math.random() * h, 1, 1);
+            }
+            
+            // Draw galaxy grid
+            ctx.strokeStyle = '#1a2a3a';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            for (let x = 0; x < w; x += 100) {
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, h);
+            }
+            for (let y = 0; y < h; y += 100) {
+                ctx.moveTo(0, y);
+                ctx.lineTo(w, y);
+            }
+            ctx.stroke();
+            
+            // Draw planets
+            const planets = [
+                { x: 200, y: 200, r: 20, color: '#5588bb' },
+                { x: 600, y: 300, r: 25, color: '#ccaa33' },
+                { x: 400, y: 500, r: 18, color: '#8855bb' },
+                { x: 800, y: 200, r: 30, color: '#5588bb' }
+            ];
+            
+            planets.forEach(p => {
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // Planet label
+                ctx.fillStyle = '#fff';
+                ctx.font = '12px monospace';
+                ctx.fillText('Planet', p.x - 20, p.y - 30);
+            });
+            
+            // Draw lanes
+            ctx.strokeStyle = '#3366aa';
+            ctx.globalAlpha = 0.3;
+            ctx.beginPath();
+            ctx.moveTo(200, 200);
+            ctx.lineTo(600, 300);
+            ctx.lineTo(400, 500);
+            ctx.lineTo(800, 200);
+            ctx.stroke();
+            ctx.globalAlpha = 1.0;
+            
+            // Draw ships
+            ctx.fillStyle = '#00ffff';
+            const ships = [
+                { x: 250, y: 250, type: 'fighter' },
+                { x: 650, y: 350, type: 'cruiser' },
+                { x: 450, y: 550, type: 'bomber' }
+            ];
+            
+            ships.forEach(s => {
+                ctx.beginPath();
+                ctx.moveTo(s.x, s.y);
+                ctx.lineTo(s.x + 10, s.y + 15);
+                ctx.lineTo(s.x - 10, s.y + 15);
+                ctx.fill();
+            });
+        }
+
+        // Controls
+        function panLeft() { gameState.panX += 50; applyTransform(); }
+        function panRight() { gameState.panX -= 50; applyTransform(); }
+        function panUp() { gameState.panY += 50; applyTransform(); }
+        function panDown() { gameState.panY -= 50; applyTransform(); }
+        
+        function zoomIn() {
+            gameState.zoom = Math.min(3.0, gameState.zoom * 1.2);
+            applyTransform();
+        }
+        
+        function zoomOut() {
+            gameState.zoom = Math.max(0.3, gameState.zoom / 1.2);
+            applyTransform();
+        }
+        
+        function resetView() {
+            gameState.zoom = 1.0;
+            gameState.panX = 0;
+            gameState.panY = 0;
+            applyTransform();
+        }
+
+        // Dashboard controls
+        function toggleDashboard() {
+            const dashboard = document.getElementById('dashboard');
+            dashboard.style.display = dashboard.style.display === 'none' ? 'block' : 'none';
+        }
+        
+        function saveGame() {
+            alert('Game saved!');
+        }
+        
+        function goToMenu() {
+            alert('Going to menu...');
+        }
+
+        // Mouse controls for panning
+        let isDragging = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+
+        document.getElementById('game-canvas').addEventListener('mousedown', (e) => {
+            isDragging = true;
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (isDragging) {
+                const dx = e.clientX - lastMouseX;
+                const dy = e.clientY - lastMouseY;
+                gameState.panX += dx;
+                gameState.panY += dy;
+                lastMouseX = e.clientX;
+                lastMouseY = e.clientY;
+                applyTransform();
+            }
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Wheel for zoom
+        document.getElementById('game-canvas').addEventListener('wheel', (e) => {
+            e.preventDefault();
+            if (e.ctrlKey) {
+                // Pinch-to-zoom
+                const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1;
+                gameState.zoom = Math.max(0.3, Math.min(3.0, gameState.zoom * zoomFactor));
+                applyTransform();
+            } else {
+                // Pan with wheel
+                gameState.panY += e.deltaY;
+                applyTransform();
+            }
+        }, { passive: false });
+
+        // Initialize
+        window.onload = init;
+        
+        // Keyboard controls
+        const keys = {};
+        let panInterval = null;
+        
+        // Enhanced zoom controls with K/L (screen center zoom with constant speed)
+        let zoomInterval = null;
+        let currentZoomDirection = null;
+        
+        function updateSmoothZoom() {
+            if (!currentZoomDirection) return;
+            
+            // Get screen center coordinates
+            const screenCenterX = window.innerWidth / 2;
+            const screenCenterY = window.innerHeight / 2;
+            
+            // Calculate current world coordinates at screen center
+            const worldCenterX = (screenCenterX - gameState.panX) / gameState.zoom;
+            const worldCenterY = (screenCenterY - gameState.panY) / gameState.zoom;
+            
+            // Apply zoom with constant speed (no ramping)
+            let newZoom = gameState.zoom;
+            if (currentZoomDirection === 'out') {
+                newZoom = Math.max(0.3, gameState.zoom * 0.98); // Slightly faster zoom out
+            } else if (currentZoomDirection === 'in') {
+                newZoom = Math.min(3.0, gameState.zoom * 1.02); // Slightly faster zoom in
+            }
+            
+            // Calculate new pan to keep the same world coordinates at screen center
+            const newPanX = screenCenterX - (worldCenterX * newZoom);
+            const newPanY = screenCenterY - (worldCenterY * newZoom);
+            
+            gameState.zoom = newZoom;
+            gameState.panX = newPanX;
+            gameState.panY = newPanY;
+            
+            applyTransform();
+        }
+        
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            
+            if (key === 'k' || key === 'l') {
+                e.preventDefault(); // Prevent browser zoom
+                
+                if (!zoomInterval) {
+                    currentZoomDirection = (key === 'k') ? 'out' : 'in';
+                    updateSmoothZoom(); // Immediate response
+                    
+                    // Start smooth zoom interval
+                    zoomInterval = setInterval(updateSmoothZoom, 16); // ~60fps
+                }
+            }
+            
+            // Spacebar reset
+            if (e.key === ' ') {
+                resetView();
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            
+            if ((key === 'k' || key === 'l') && zoomInterval) {
+                clearInterval(zoomInterval);
+                zoomInterval = null;
+                currentZoomDirection = null;
+            }
+        });
+        
+        // WASD panning with smooth movement
+        window.addEventListener('keydown', (e) => {
+            const key = e.key.toLowerCase();
+            keys[key] = true;
+            
+            // Start smooth panning when any WASD key is held
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                if (!panInterval) {
+                    panInterval = setInterval(() => {
+                        let moved = false;
+                        
+                        if (keys['w']) { gameState.panY += 10; moved = true; }  // W moves up
+                        if (keys['s']) { gameState.panY -= 10; moved = true; }  // S moves down
+                        if (keys['a']) { gameState.panX += 10; moved = true; }  // A moves left
+                        if (keys['d']) { gameState.panX -= 10; moved = true; }  // D moves right
+                        
+                        if (moved) applyTransform();
+                    }, 16); // ~60fps smooth panning
+                }
+            }
+        });
+        
+        window.addEventListener('keyup', (e) => {
+            const key = e.key.toLowerCase();
+            keys[key] = false;
+            
+            // Stop smooth panning when all WASD keys are released
+            if (['w', 'a', 's', 'd'].includes(key)) {
+                const anyWASDPressed = ['w', 'a', 's', 'd'].some(k => keys[k]);
+                if (!anyWASDPressed && panInterval) {
+                    clearInterval(panInterval);
+                    panInterval = null;
+                }
+            }
+        });
+    </script>
+</body>
+</html>
