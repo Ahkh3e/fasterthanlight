@@ -41,6 +41,9 @@ Then open `http://localhost:5173`.
 ### Performance note
 - Backend per-second tick logging is disabled by default for smoother runtime.
 - To enable diagnostics temporarily, set `GAME_TICK_DIAGNOSTICS=1` for backend.
+- Idle game lifecycle tuning:
+	- `GAME_IDLE_PAUSE_SECONDS` (default `15`): pause simulation for games with zero connected players.
+	- `GAME_IDLE_EXPIRE_SECONDS` (default `1800`): remove idle games from memory after timeout.
 
 ## Multiplayer Lobby (up to 6)
 

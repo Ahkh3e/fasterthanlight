@@ -30,6 +30,8 @@ app.add_middleware(
 
 TICK_RATE = int(os.getenv("GAME_TICK_RATE", "20"))
 TICK_DIAGNOSTICS = os.getenv("GAME_TICK_DIAGNOSTICS", "0") == "1"
+GAME_IDLE_PAUSE_SECONDS = int(os.getenv("GAME_IDLE_PAUSE_SECONDS", "15"))
+GAME_IDLE_EXPIRE_SECONDS = int(os.getenv("GAME_IDLE_EXPIRE_SECONDS", "1800"))
 SAVES_DIR = Path("saves")
 SAVES_DIR.mkdir(exist_ok=True)
 
@@ -445,14 +447,35 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
 async def game_loop(game_id: str) -> None:
     tick_interval = 1.0 / TICK_RATE
     loop = asyncio.get_event_loop()
+    next_tick_at = loop.time()
+    prev_loop_started_at = next_tick_at
 
     # Diagnostics
     _diag_ticks = 0
     _diag_last  = loop.time()
+    _last_connection_seen = loop.time()
 
     while game_id in games:
         tick_start = loop.time()
+        loop_interval_ms = (tick_start - prev_loop_started_at) * 1000.0
+        prev_loop_started_at = tick_start
         state = games[game_id]
+
+        online_count = len(connections.get(game_id, []))
+        if online_count > 0:
+            _last_connection_seen = tick_start
+        else:
+            idle_for = tick_start - _last_connection_seen
+            if idle_for >= GAME_IDLE_EXPIRE_SECONDS:
+                games.pop(game_id, None)
+                connections.pop(game_id, None)
+                connection_meta.pop(game_id, None)
+                game_access_tokens.pop(game_id, None)
+                game_players_by_token.pop(game_id, None)
+                continue
+            if idle_for >= GAME_IDLE_PAUSE_SECONDS:
+                await asyncio.sleep(min(0.25, tick_interval))
+                continue
 
         if not state.running:
             await asyncio.sleep(tick_interval)
@@ -474,7 +497,7 @@ async def game_loop(game_id: str) -> None:
         payload = {
             "type": "tick",
             "data": delta,
-            "players_online": len(connections.get(game_id, [])),
+            "players_online": online_count,
         }
         dead_connections = []
 
@@ -493,18 +516,27 @@ async def game_loop(game_id: str) -> None:
                 connections[game_id].remove(ws)
 
         # ── Diagnostics: log actual tick rate once per second ─────────────────
+        work_ms = (loop.time() - tick_start) * 1000.0
+
         if TICK_DIAGNOSTICS:
             _diag_ticks += 1
             now = loop.time()
             if now - _diag_last >= 1.0:
-                elapsed_ms = (now - tick_start) * 1000
-                print(f"[game {game_id}] tick rate: {_diag_ticks}/s  last tick: {elapsed_ms:.1f}ms")
+                lag_ms = max(0.0, (now - next_tick_at) * 1000.0)
+                print(
+                    f"[game {game_id}] rate: {_diag_ticks}/s  "
+                    f"work: {work_ms:.1f}ms  loop: {loop_interval_ms:.1f}ms  lag: {lag_ms:.1f}ms"
+                )
                 _diag_ticks = 0
                 _diag_last  = now
 
-        # Sleep only for the remaining time in the tick window
-        elapsed   = loop.time() - tick_start
-        sleep_for = max(0.0, tick_interval - elapsed)
+        # Fixed-step scheduler: keep stable cadence and avoid drift.
+        next_tick_at += tick_interval
+        now = loop.time()
+        if next_tick_at < now - tick_interval:
+            # If we're more than one tick late, resync to current time.
+            next_tick_at = now
+        sleep_for = max(0.0, next_tick_at - now)
         await asyncio.sleep(sleep_for)
 
     connections.pop(game_id, None)

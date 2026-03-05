@@ -13,6 +13,7 @@ from game.config import (
     LEVEL_INCOME_BONUS, TRADE_HUB_INCOME_BONUS,
     BASE_STORAGE_CAPACITY, EXTRACTOR_STORAGE_BONUS, SHIPYARD_STORAGE_BONUS, PLANET_STORAGE_BONUS,
     RESEARCH_PER_LAB, TECH_THRESHOLDS, SHIP_STATS, AUTO_FLEET_INTERVAL,
+    MAX_SHIPS_PER_FACTION,
     BUILDING_COSTS, SHIP_COSTS, LEVEL_UP_TICKS, TECH_BONUSES,
 )
 from game.state import GameState, Planet, Ship, Faction
@@ -263,11 +264,18 @@ def _auto_fleet(state: GameState, faction_map: dict) -> None:
     Spawns are staggered across planets to avoid a single massive simultaneous batch.
     Ships are distributed evenly around the orbit so they don't stack on one spot.
     """
+    ship_counts: dict[str, int] = {}
+    for ship in state.ships:
+        ship_counts[ship.owner] = ship_counts.get(ship.owner, 0) + 1
+
     for i, planet in enumerate(state.planets):
         if planet.owner is None:
             continue
         faction = faction_map.get(planet.owner)
         if faction is None or faction.eliminated:
+            continue
+        owner_ships = ship_counts.get(planet.owner, 0)
+        if owner_ships >= MAX_SHIPS_PER_FACTION:
             continue
         # Stagger: planet i fires when (tick + i) % interval == 0
         if (state.tick + i) % AUTO_FLEET_INTERVAL != 0:
@@ -279,9 +287,13 @@ def _auto_fleet(state: GameState, faction_map: dict) -> None:
 
         count = planet.level
         ship_type = "fighter"  # auto-fleet always spawns basic fighters
+        count = min(count, MAX_SHIPS_PER_FACTION - owner_ships)
+        if count <= 0:
+            continue
 
         for _ in range(count):
             _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
+        ship_counts[planet.owner] = owner_ships + count
 
 
 # ── Tech tier advancement ──────────────────────────────────────────────────────
