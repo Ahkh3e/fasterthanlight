@@ -188,7 +188,8 @@ async def handle_input(game_id: str, message: dict) -> None:
         faction   = {f.id: f for f in state.factions}.get("player")
         if not planet or planet.owner != "player" or not faction:
             return
-        if len(planet.build_queue) >= 2:
+        queue_capacity = 2 + max(0, planet.level - 1)
+        if len(planet.build_queue) >= queue_capacity:
             return
         if item_type == "building":
             cost = BUILDING_COSTS.get(item_name)

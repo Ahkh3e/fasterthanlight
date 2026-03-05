@@ -508,11 +508,15 @@ class GameApp {
     // Current resources header
     const resDiv = document.createElement('div')
     resDiv.id = 'dashboard-construct-resources'
-    resDiv.style.cssText = 'color:#7a9ab0;font-size:11px;margin-bottom:10px;padding:5px 8px;background:rgba(0,200,255,0.05);border-radius:4px;border:1px solid rgba(0,200,255,0.1);width:100%'
+    resDiv.style.cssText = 'font-size:11px;margin-bottom:10px;'
     resDiv.textContent = `Cr ${fmt(Math.floor(faction.credits))}  RP ${Math.floor(faction.research_points)}  T${faction.tech_tier}  Lvl ${planet.level}`
     container.appendChild(resDiv)
 
-    const queueFull = (planet.build_queue ?? []).length >= 2
+    const queueCapacity = 2 + Math.max(0, (planet.level ?? 1) - 1)
+    const queueFull = (planet.build_queue ?? []).length >= queueCapacity
+
+    const queueCapEl = document.getElementById('dashboard-queue-cap')
+    if (queueCapEl) queueCapEl.textContent = queueCapacity
 
     const LEVEL_UP_COSTS = { 1: 300, 2: 600, 3: 1200, 4: 2400 }
     const LEVEL_UP_TICKS_TABLE = { 1: 200, 2: 400, 3: 800, 4: 1600 }
@@ -535,9 +539,10 @@ class GameApp {
 
     const makeBtn = (label, cost, desc, canBuild, onClick, hint = '') => {
       const btn = document.createElement('button')
-      btn.style.cssText = `background:${canBuild ? '#1c3545' : '#111a22'};color:${canBuild ? '#c8dce8' : '#3a5060'};border:1px solid ${canBuild ? '#2a4a60' : '#1a2a30'};padding:8px 12px;font-size:11px;border-radius:6px;cursor:${canBuild ? 'pointer' : 'default'};opacity:${canBuild ? '1' : '0.4'};text-align:left;line-height:1.5;min-width:110px;margin:0`
-      const hintHtml = hint ? `<div style="font-size:10px;color:#6a3a3a">${hint}</div>` : ''
-      btn.innerHTML = `<div style="font-weight:700">${label}</div><div style="font-size:10px;color:#4a6a80">${cost}</div><div style="font-size:10px;color:#3a5a6a">${desc}</div>${hintHtml}`
+      btn.className = `dash-pixel-btn ${canBuild ? 'enabled' : 'disabled'}`
+      btn.style.cssText = `cursor:${canBuild ? 'pointer' : 'default'};opacity:${canBuild ? '1' : '0.55'};min-width:110px;`
+      const hintHtml = hint ? `<div class="dash-btn-hint">${hint}</div>` : ''
+      btn.innerHTML = `<div class="dash-btn-title">${label}</div><div class="dash-btn-cost">${cost}</div><div class="dash-btn-desc">${desc}</div>${hintHtml}`
       if (canBuild) btn.addEventListener('click', onClick)
       return btn
     }
@@ -616,6 +621,9 @@ class GameApp {
 
     const queue = planet.build_queue ?? []
     document.getElementById('dashboard-queue-count').textContent = queue.length
+    const queueCapacity = 2 + Math.max(0, (planet.level ?? 1) - 1)
+    const queueCapEl = document.getElementById('dashboard-queue-cap')
+    if (queueCapEl) queueCapEl.textContent = queueCapacity
     const el = document.getElementById('dashboard-queue')
     if (!el) return
     if (queue.length === 0) { el.textContent = 'Empty'; return }

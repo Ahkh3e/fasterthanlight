@@ -82,18 +82,180 @@
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: rgba(15, 23, 42, 0.95);
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            border: 1px solid rgba(255, 255, 255, 0.06);
-            border-radius: 16px;
-            padding: 20px 24px;
-            width: min(860px, 92vw);
+            background: #0b1020;
+            border: 3px solid #2fd4ff;
+            border-radius: 0;
+            padding: 16px 18px;
+            width: min(920px, 94vw);
             max-height: 82vh;
-            overflow-y: auto;
+            overflow: hidden;
             z-index: 2000;
             display: none;
-            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+            box-shadow:
+                0 0 0 3px #0a1a33,
+                0 0 0 6px #113050,
+                0 18px 56px rgba(0, 0, 0, 0.55),
+                inset 0 0 0 2px rgba(65, 171, 255, 0.18);
+            image-rendering: pixelated;
+            font-family: "Courier New", Consolas, monospace;
+            color: #9ec0d4;
+        }
+
+        .dashboard-overlay::before {
+            content: "";
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(79, 129, 171, 0.06) 0,
+                rgba(79, 129, 171, 0.06) 1px,
+                transparent 1px,
+                transparent 3px
+            );
+            mix-blend-mode: screen;
+        }
+
+        .dash-head {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            margin-bottom: 6px;
+            padding-bottom: 8px;
+            border-bottom: 2px solid #1f4768;
+        }
+
+        .dash-title {
+            color: #6fe8ff;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            text-shadow: 0 0 8px rgba(111, 232, 255, 0.25);
+        }
+
+        .dash-owner {
+            color: #78a0bd;
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+
+        .dash-subhead {
+            position: relative;
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 12px;
+            color: #4b6f86;
+            font-size: 10px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .dash-stats {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(3, minmax(120px, 1fr));
+            gap: 8px;
+            padding: 8px;
+            margin-bottom: 14px;
+            border: 2px solid #1e3f57;
+            background: rgba(12, 26, 43, 0.9);
+            font-size: 11px;
+        }
+
+        .dash-stat {
+            display: flex;
+            justify-content: space-between;
+            color: #6a8ea4;
+            border: 1px solid #16354e;
+            padding: 4px 6px;
+            background: rgba(6, 16, 28, 0.7);
+            min-height: 18px;
+        }
+
+        .dash-stat .v {
+            color: #a7d2eb;
+            font-weight: 700;
+        }
+
+        .dash-section-title {
+            position: relative;
+            color: #5ec8ff;
+            font-size: 10px;
+            letter-spacing: 1px;
+            margin: 12px 0 6px;
+            text-transform: uppercase;
+        }
+
+        .dash-section-body {
+            position: relative;
+            color: #9bb6c6;
+            font-size: 11px;
+            margin-bottom: 12px;
+            border: 1px solid #18364d;
+            background: rgba(8, 20, 34, 0.75);
+            padding: 8px;
+            min-height: 22px;
+        }
+
+        #dashboard-construction {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 8px;
+        }
+
+        .dashboard-overlay button {
+            border-radius: 0;
+            border: 1px solid #2b5a78;
+            background: #133148;
+            color: #bde7ff;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.35);
+            font-family: "Courier New", Consolas, monospace;
+            letter-spacing: 0.6px;
+            text-transform: uppercase;
+        }
+
+        .dashboard-overlay button:hover {
+            background: #19415f;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.35), 0 0 0 1px rgba(111,232,255,0.22);
+            transform: none;
+        }
+
+        .dashboard-close {
+            cursor: pointer;
+            color: #6c99b4;
+            font-size: 16px;
+            border: 1px solid #21465f;
+            padding: 2px 8px;
+            line-height: 1;
+            background: rgba(16, 37, 54, 0.9);
+        }
+
+        .dashboard-close:hover {
+            color: #d7f2ff;
+            border-color: #3f89b2;
+        }
+
+        .dash-corner {
+            position: absolute;
+            width: 8px;
+            height: 8px;
+            border: 2px solid #2fd4ff;
+            pointer-events: none;
+        }
+
+        .dash-corner.tl { top: -5px; left: -5px; border-right: 0; border-bottom: 0; }
+        .dash-corner.tr { top: -5px; right: -5px; border-left: 0; border-bottom: 0; }
+        .dash-corner.bl { bottom: -5px; left: -5px; border-right: 0; border-top: 0; }
+        .dash-corner.br { bottom: -5px; right: -5px; border-left: 0; border-top: 0; }
+
+        @media (max-width: 760px) {
+            .dash-stats {
+                grid-template-columns: repeat(2, minmax(100px, 1fr));
+            }
         }
 
         /* Controls for testing */
@@ -150,6 +312,199 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
+
+        /* ── Retro Pixel Cockpit Theme ───────────────────────────────────── */
+        :root {
+            --retro-bg: #070b14;
+            --retro-panel: #0e1a2a;
+            --retro-panel-2: #12233a;
+            --retro-line: #2a4c6d;
+            --retro-cyan: #7ae7ff;
+            --retro-cyan-dim: #4ea7c7;
+            --retro-gold: #f4cf74;
+            --retro-gold-dim: #b08f42;
+            --retro-red: #ff6f78;
+            --retro-text: #a9bfd4;
+            --retro-text-dim: #70889f;
+        }
+
+        body {
+            background:
+                radial-gradient(1300px 700px at 55% -20%, #1a273d 0%, transparent 58%),
+                radial-gradient(900px 420px at 20% 120%, #172640 0%, transparent 62%),
+                var(--retro-bg);
+            color: var(--retro-text);
+            font-family: "Courier New", Consolas, monospace;
+        }
+
+        .hud-panel,
+        #faction-status,
+        .controls,
+        #start-screen,
+        #gameover-screen {
+            image-rendering: pixelated;
+        }
+
+        .hud-panel {
+            background: linear-gradient(180deg, rgba(18, 35, 58, 0.95), rgba(10, 20, 32, 0.95)) !important;
+            border: 2px solid var(--retro-line) !important;
+            border-radius: 0 !important;
+            box-shadow:
+                0 0 0 2px rgba(8, 17, 28, 0.95),
+                inset 0 0 0 1px rgba(122, 231, 255, 0.12),
+                0 8px 20px rgba(0, 0, 0, 0.45) !important;
+            color: var(--retro-text) !important;
+        }
+
+        .hud-panel:hover {
+            transform: none !important;
+            background: linear-gradient(180deg, rgba(22, 41, 66, 0.96), rgba(12, 23, 36, 0.96)) !important;
+            border-color: #39658d !important;
+            box-shadow:
+                0 0 0 2px rgba(8, 17, 28, 0.95),
+                inset 0 0 0 1px rgba(122, 231, 255, 0.18),
+                0 8px 20px rgba(0, 0, 0, 0.45) !important;
+        }
+
+        #faction-status {
+            border: 2px solid #305674 !important;
+            border-radius: 0 !important;
+            background: rgba(12, 24, 40, 0.94) !important;
+        }
+
+        button {
+            background: linear-gradient(180deg, #183754, #122840) !important;
+            color: var(--retro-cyan) !important;
+            border: 1px solid #376285 !important;
+            border-radius: 0 !important;
+            box-shadow:
+                inset 0 -2px 0 rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(0, 0, 0, 0.35) !important;
+            font-family: "Courier New", Consolas, monospace !important;
+            font-weight: 700 !important;
+            text-transform: uppercase;
+            letter-spacing: 1px !important;
+        }
+
+        button:hover {
+            transform: none !important;
+            background: linear-gradient(180deg, #214668, #16314c) !important;
+            box-shadow:
+                inset 0 -2px 0 rgba(0, 0, 0, 0.35),
+                0 0 0 1px rgba(122, 231, 255, 0.28) !important;
+        }
+
+        #start-screen,
+        #gameover-screen {
+            background:
+                radial-gradient(800px 440px at 50% 15%, rgba(34, 62, 92, 0.35) 0%, transparent 65%),
+                #070b14 !important;
+        }
+
+        #start-screen > div:first-child,
+        #gameover-title {
+            color: var(--retro-gold) !important;
+            text-shadow: 0 0 14px rgba(244, 207, 116, 0.22) !important;
+        }
+
+        #start-screen > div:nth-child(2),
+        #gameover-subtitle {
+            color: var(--retro-cyan-dim) !important;
+        }
+
+        #gameover-stats {
+            color: var(--retro-text-dim) !important;
+        }
+
+        .dash-title {
+            color: var(--retro-gold) !important;
+            text-shadow: 0 0 8px rgba(244, 207, 116, 0.20) !important;
+        }
+
+        .dash-subhead,
+        .dash-owner,
+        .dash-section-title,
+        .dash-stat {
+            color: var(--retro-cyan-dim) !important;
+        }
+
+        .dash-stat .v,
+        .dash-section-body {
+            color: var(--retro-text) !important;
+        }
+
+        .dash-corner {
+            border-color: var(--retro-gold) !important;
+        }
+
+        .dashboard-close {
+            color: var(--retro-cyan-dim) !important;
+            border-color: #2e5f80 !important;
+            background: #122b42 !important;
+        }
+
+        .dashboard-close:hover {
+            color: var(--retro-gold) !important;
+            border-color: #b08f42 !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn {
+            width: 100%;
+            text-align: left;
+            padding: 8px 10px;
+            margin: 0;
+            min-height: 72px;
+            line-height: 1.35;
+            font-size: 11px;
+        }
+
+        #dashboard-construction .dash-pixel-btn.enabled {
+            background: linear-gradient(180deg, #18405d, #12344d) !important;
+            color: #cde9ff !important;
+            border-color: #4a87af !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.disabled {
+            background: linear-gradient(180deg, #0f1f2d, #0c1824) !important;
+            color: #5e7387 !important;
+            border-color: #213548 !important;
+            opacity: 0.55;
+            cursor: default;
+        }
+
+        #dashboard-construction .dash-btn-title {
+            font-weight: 700;
+            color: #d7eeff;
+            letter-spacing: 0.6px;
+        }
+
+        #dashboard-construction .dash-btn-cost {
+            margin-top: 2px;
+            font-size: 10px;
+            color: #8fd7ff;
+        }
+
+        #dashboard-construction .dash-btn-desc {
+            margin-top: 1px;
+            font-size: 10px;
+            color: #8eacc0;
+        }
+
+        #dashboard-construction .dash-btn-hint {
+            margin-top: 2px;
+            font-size: 10px;
+            color: #b86d57;
+        }
+
+        #dashboard-construct-resources {
+            width: 100%;
+            border: 1px solid #2d5876 !important;
+            background: rgba(20, 46, 68, 0.55) !important;
+            color: #a5d8ff !important;
+            padding: 6px 8px;
+            border-radius: 0 !important;
+            letter-spacing: 0.6px;
+        }
     </style>
 </head>
 <body>
@@ -191,32 +546,40 @@
 
     <!-- Dashboard Overlay -->
     <div class="dashboard-overlay" id="dashboard">
-        <!-- Header -->
-        <div style="display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px;">
-            <div style="color:#00ffff; font-size:18px; font-weight:700; letter-spacing:1px;" id="dashboard-title">PLANET NAME</div>
-            <div style="color:#4a8090; font-size:11px;" id="dashboard-owner">Your Empire</div>
+        <span class="dash-corner tl"></span>
+        <span class="dash-corner tr"></span>
+        <span class="dash-corner bl"></span>
+        <span class="dash-corner br"></span>
+
+        <div class="dash-head">
+            <div class="dash-title" id="dashboard-title">PLANET NAME</div>
+            <div style="display:flex;align-items:center;gap:8px;">
+                <div class="dash-owner" id="dashboard-owner">Your Empire</div>
+                <div class="dashboard-close" title="Close">×</div>
+            </div>
         </div>
 
-        <!-- Stats row -->
-        <div style="display:flex; gap:20px; flex-wrap:wrap; padding:8px 0 12px; border-bottom:1px solid #1a3040; margin-bottom:14px; color:#5a8090; font-size:11px;">
-            <span>▲ <span id="dashboard-resource-label">Credits</span> <span id="dashboard-minerals" style="color:#7ab0c0">--</span>/s</span>
-            <span>Pop <span id="dashboard-population" style="color:#7ab0c0">--</span></span>
-            <span>Def <span id="dashboard-defense" style="color:#7ab0c0">--</span>%</span>
-            <span>Lvl <span id="dashboard-level" style="color:#fbbf24">--</span></span>
-            <span>Spawn <span id="dashboard-ships" style="color:#7ab0c0">--</span>/burst</span>
-            <span>Orbiting <span id="dashboard-orbiting" style="color:#7ab0c0">--</span></span>
+        <div class="dash-subhead">
+            <span>Cockpit // Planet Link</span>
+            <span>Telemetry Online</span>
         </div>
 
-        <!-- Buildings -->
-        <div style="color:#1a5070; font-size:10px; letter-spacing:1px; margin-bottom:6px;">BUILDINGS</div>
-        <div style="color:#9ab0be; font-size:11px; margin-bottom:14px;" id="dashboard-buildings">None</div>
+        <div class="dash-stats">
+            <div class="dash-stat"><span>▲ <span id="dashboard-resource-label">Credits</span>/s</span><span class="v" id="dashboard-minerals">--</span></div>
+            <div class="dash-stat"><span>Population</span><span class="v" id="dashboard-population">--</span></div>
+            <div class="dash-stat"><span>Defense %</span><span class="v" id="dashboard-defense">--</span></div>
+            <div class="dash-stat"><span>Planet Lvl</span><span class="v" id="dashboard-level">--</span></div>
+            <div class="dash-stat"><span>Spawn/Burst</span><span class="v" id="dashboard-ships">--</span></div>
+            <div class="dash-stat"><span>Orbiting</span><span class="v" id="dashboard-orbiting">--</span></div>
+        </div>
 
-        <!-- Build queue -->
-        <div style="color:#1a5070; font-size:10px; letter-spacing:1px; margin-bottom:6px;">BUILD QUEUE (<span id="dashboard-queue-count">0</span>/2)</div>
-        <div style="color:#7799aa; font-size:11px; margin-bottom:14px;" id="dashboard-queue">Empty</div>
+        <div class="dash-section-title">Buildings</div>
+        <div class="dash-section-body" id="dashboard-buildings">None</div>
 
-        <!-- Construct -->
-        <div style="color:#1a5070; font-size:10px; letter-spacing:1px; margin-bottom:8px;">CONSTRUCT</div>
+        <div class="dash-section-title">Build Queue (<span id="dashboard-queue-count">0</span>/<span id="dashboard-queue-cap">2</span>)</div>
+        <div class="dash-section-body" id="dashboard-queue">Empty</div>
+
+        <div class="dash-section-title">Construct</div>
         <div style="display:flex; gap:8px; flex-wrap:wrap;" id="dashboard-construction"></div>
     </div>
 
@@ -249,7 +612,7 @@
             <button onclick="window.gameApp?.launchNewGame()" style="width:220px;padding:14px 0;font-size:14px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">NEW GAME</button>
             <button onclick="window.gameApp?.openLoadMenu()" style="width:220px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;border-color:#1a3a50;cursor:not-allowed;opacity:0.5;" disabled>LOAD GAME</button>
         </div>
-        <div style="margin-top:48px;color:#2a3a44;font-size:11px;letter-spacing:2px;">WASD · PAN &nbsp;&nbsp; K/L · ZOOM &nbsp;&nbsp; CLICK · SELECT &nbsp;&nbsp; RIGHT-CLICK · MOVE</div>
+        <div style="margin-top:48px;color:#2a3a44;font-size:11px;letter-spacing:2px;">WASD · PAN &nbsp;&nbsp; C/V · ZOOM &nbsp;&nbsp; CLICK · SELECT &nbsp;&nbsp; RIGHT-CLICK · MOVE</div>
     </div>
 
     <script type="module" src="/src/main.js"></script>
