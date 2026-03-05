@@ -2,7 +2,7 @@ services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     volumes:
       - ./backend/app:/app
       - saves_data:/app/saves
@@ -12,15 +12,27 @@ services:
   frontend:
     build: ./frontend
     ports:
-      - "5173:5173"
+      - "127.0.0.1:5173:5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules
     environment:
-      VITE_API_URL: "http://localhost:8000"
-      VITE_WS_URL: "ws://localhost:8000"
+      VITE_API_URL: "${VITE_API_URL:-http://localhost:8000}"
+      VITE_WS_URL: "${VITE_WS_URL:-ws://localhost:8000}"
     depends_on:
       - backend
+
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CF_TUNNEL_TOKEN}
+    environment:
+      CF_TUNNEL_TOKEN: "${CF_TUNNEL_TOKEN:-}"
+    depends_on:
+      - frontend
+      - backend
+    restart: unless-stopped
+    profiles:
+      - tunnel
 
 volumes:
   saves_data:

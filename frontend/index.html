@@ -394,6 +394,23 @@
                 0 0 0 1px rgba(122, 231, 255, 0.28) !important;
         }
 
+        .retro-input {
+            width: 220px;
+            padding: 10px;
+            border: 1px solid #2f5f80;
+            background: #0d1e2f;
+            color: #9dd4f5;
+            border-radius: 0;
+            font-family: "Courier New", Consolas, monospace;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            box-sizing: border-box;
+        }
+
+        .retro-input::placeholder {
+            color: #4b7087;
+        }
+
         #start-screen,
         #gameover-screen {
             background:
@@ -519,6 +536,12 @@
         <div class="hud-panel top-right">
             <div style="color: #e2e8f0; font-weight: 700; font-size: 16px; margin-bottom: 6px; letter-spacing:2px;">FASTER THAN LIGHT</div>
             <div style="color: #4a7080; font-size: 11px; margin-bottom: 12px; letter-spacing:1px;">Seed <span id="hud-seed" style="color:#3a8880">--</span> &nbsp;&middot;&nbsp; Game <span id="hud-gameid" style="color:#3a8880">--</span></div>
+            <div style="color:#6d9ab3;font-size:10px;margin-bottom:10px;letter-spacing:1px;line-height:1.4;">
+                Conn <span id="hud-conn" style="color:#ff6f78;">OFFLINE</span>
+                &nbsp;&middot;&nbsp; Online <span id="hud-online" style="color:#7ae7ff;">0</span>
+                <br>
+                Endpoint <span id="hud-endpoint" style="color:#7ae7ff;">--</span>
+            </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button onclick="goToMenu()" id="btn-menu">MENU</button>
             </div>
@@ -610,8 +633,17 @@
         <div style="font-size:13px;color:#3a6070;letter-spacing:4px;margin-bottom:56px;text-transform:uppercase;">Galactic Conquest</div>
         <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
             <button onclick="window.gameApp?.launchNewGame()" style="width:220px;padding:14px 0;font-size:14px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">NEW GAME</button>
+            <input id="lobby-player-name" class="retro-input" placeholder="Player Name" maxlength="20" />
+            <button onclick="window.hostLobby?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;">HOST LOBBY (MAX 6)</button>
+            <input id="lobby-code-input" class="retro-input" placeholder="Lobby Code" maxlength="6" />
+            <button onclick="window.joinLobby?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;">JOIN LOBBY</button>
+            <button id="lobby-start-btn" onclick="window.startLobbyMatch?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;display:none;">START MATCH</button>
+            <button onclick="window.leaveLobby?.()" style="width:220px;padding:12px 0;font-size:13px;letter-spacing:2px;background:#102030;color:#6ea7c5;">LEAVE LOBBY</button>
             <button onclick="window.gameApp?.openLoadMenu()" style="width:220px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;border-color:#1a3a50;cursor:not-allowed;opacity:0.5;" disabled>LOAD GAME</button>
         </div>
+        <div style="margin-top:18px;color:#6d9ab3;font-size:11px;letter-spacing:1px;" id="lobby-code-display">No active lobby</div>
+        <div style="margin-top:8px;color:#6ea7c5;font-size:11px;letter-spacing:1px;" id="lobby-status">Idle. Host or join a lobby.</div>
+        <div style="margin-top:6px;color:#5b7b92;font-size:10px;letter-spacing:1px;max-width:70vw;text-align:center;" id="lobby-roster">No players yet.</div>
         <div style="margin-top:48px;color:#2a3a44;font-size:11px;letter-spacing:2px;">WASD · PAN &nbsp;&nbsp; C/V · ZOOM &nbsp;&nbsp; CLICK · SELECT &nbsp;&nbsp; RIGHT-CLICK · MOVE</div>
     </div>
 

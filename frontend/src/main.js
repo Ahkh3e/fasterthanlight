@@ -7,6 +7,14 @@ import { GALAXY_WIDTH, GALAXY_HEIGHT, ZOOM_MIN, ZOOM_MAX } from './config.js'
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
 
+const hostLabelFromUrl = (url) => {
+  try {
+    return new URL(url).host
+  } catch {
+    return url.replace(/^wss?:\/\//, '').replace(/^https?:\/\//, '')
+  }
+}
+
 class GameApp {
   constructor() {
     this.gameState = null
@@ -18,6 +26,15 @@ class GameApp {
     this.selectedShips = new Set()
     this.gameId = null
     this.seed = null
+    this.connectionOnline = false
+    this.playersOnline = 0
+    this.endpointLabel = hostLabelFromUrl(API_URL)
+
+    // Lobby state
+    this.lobbyId = null
+    this.lobbyToken = null
+    this.lobbyIsHost = false
+    this.lobbyPollInterval = null
     
     // Game state
     this.zoom = 1.0
@@ -309,9 +326,49 @@ class GameApp {
   setupUI() {
     // Initialize HUD elements
     this.updateHUD()
+    this.updateConnectionHUD()
+    this.setupLobbyUI()
     
     // Setup dashboard
     this.setupDashboard()
+  }
+
+  updateConnectionHUD() {
+    const conn = document.getElementById('hud-conn')
+    const ep = document.getElementById('hud-endpoint')
+    const on = document.getElementById('hud-online')
+    if (conn) conn.textContent = this.connectionOnline ? 'ONLINE' : 'OFFLINE'
+    if (conn) conn.style.color = this.connectionOnline ? '#00e8cc' : '#ff6f78'
+    if (ep) ep.textContent = this.endpointLabel
+    if (on) on.textContent = `${this.playersOnline}`
+  }
+
+  setupLobbyUI() {
+    const nameInput = document.getElementById('lobby-player-name')
+    if (nameInput) {
+      const saved = localStorage.getItem('ftl_player_name')
+      if (saved) nameInput.value = saved
+      nameInput.addEventListener('change', () => {
+        localStorage.setItem('ftl_player_name', nameInput.value.trim() || 'Player')
+      })
+    }
+    this.renderLobbyStatus('Idle. Host or join a lobby.')
+  }
+
+  renderLobbyStatus(status, players = []) {
+    const statusEl = document.getElementById('lobby-status')
+    const rosterEl = document.getElementById('lobby-roster')
+    const codeEl = document.getElementById('lobby-code-display')
+    const startBtn = document.getElementById('lobby-start-btn')
+
+    if (statusEl) statusEl.textContent = status
+    if (rosterEl) {
+      rosterEl.textContent = players.length
+        ? players.map(p => `${p.slot}. ${p.name}${p.is_host ? ' (Host)' : ''}`).join('  ·  ')
+        : 'No players yet.'
+    }
+    if (codeEl) codeEl.textContent = this.lobbyId ? `Lobby ${this.lobbyId}` : 'No active lobby'
+    if (startBtn) startBtn.style.display = this.lobbyIsHost && this.lobbyId ? 'inline-block' : 'none'
   }
 
   // ── Income helper (mirrors backend formula × 20 ticks/s) ──────────────────
@@ -648,6 +705,7 @@ class GameApp {
   launchNewGame() {
     document.getElementById('start-screen')?.style.setProperty('display', 'none')
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
+    this.clearLobbyState()
     this.startNewGame()
   }
 
@@ -655,14 +713,118 @@ class GameApp {
     // Not implemented
   }
 
+  getPlayerName() {
+    const value = document.getElementById('lobby-player-name')?.value?.trim()
+    return value || localStorage.getItem('ftl_player_name') || 'Player'
+  }
+
+  async hostLobby() {
+    try {
+      const name = this.getPlayerName()
+      localStorage.setItem('ftl_player_name', name)
+      const response = await fetch(`${API_URL}/lobby/create`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_name: name, max_players: 6, planet_count: 120 }),
+      })
+      if (!response.ok) throw new Error(`Create lobby failed: ${response.status}`)
+      const data = await response.json()
+      this.lobbyId = data.lobby.lobby_id
+      this.lobbyToken = data.your_token
+      this.lobbyIsHost = true
+      this.beginLobbyPolling()
+      this.renderLobbyStatus(`Lobby created. Share code ${this.lobbyId}`, data.lobby.players || [])
+    } catch (error) {
+      this.showNotification(`Failed to host lobby: ${error.message}`, '#ff4444')
+    }
+  }
+
+  async joinLobby() {
+    try {
+      const code = (document.getElementById('lobby-code-input')?.value || '').trim().toUpperCase()
+      if (!code) {
+        this.showNotification('Enter lobby code', '#ff4444')
+        return
+      }
+      const name = this.getPlayerName()
+      localStorage.setItem('ftl_player_name', name)
+      const response = await fetch(`${API_URL}/lobby/${code}/join`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name }),
+      })
+      if (!response.ok) throw new Error(`Join lobby failed: ${response.status}`)
+      const data = await response.json()
+      this.lobbyId = data.lobby.lobby_id
+      this.lobbyToken = data.your_token
+      this.lobbyIsHost = false
+      this.beginLobbyPolling()
+      this.renderLobbyStatus('Joined lobby. Waiting for host to start.', data.lobby.players || [])
+    } catch (error) {
+      this.showNotification(`Failed to join lobby: ${error.message}`, '#ff4444')
+    }
+  }
+
+  async startLobbyMatch() {
+    if (!this.lobbyId || !this.lobbyToken || !this.lobbyIsHost) return
+    try {
+      const response = await fetch(`${API_URL}/lobby/${this.lobbyId}/start`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ host_token: this.lobbyToken }),
+      })
+      if (!response.ok) throw new Error(`Start lobby failed: ${response.status}`)
+      const data = await response.json()
+      await this.connectToGame(data.game.game_id, this.lobbyToken)
+    } catch (error) {
+      this.showNotification(`Failed to start lobby: ${error.message}`, '#ff4444')
+    }
+  }
+
+  beginLobbyPolling() {
+    if (!this.lobbyId) return
+    if (this.lobbyPollInterval) clearInterval(this.lobbyPollInterval)
+    const poll = async () => {
+      if (!this.lobbyId) return
+      try {
+        const response = await fetch(`${API_URL}/lobby/${this.lobbyId}`)
+        if (!response.ok) throw new Error(`Lobby poll failed: ${response.status}`)
+        const data = await response.json()
+        const lobby = data.lobby
+        this.renderLobbyStatus(`${lobby.status.toUpperCase()} · ${lobby.player_count}/${lobby.max_players}`, lobby.players || [])
+        if (lobby.status === 'started' && lobby.game_id) {
+          clearInterval(this.lobbyPollInterval)
+          this.lobbyPollInterval = null
+          await this.connectToGame(lobby.game_id, this.lobbyToken)
+        }
+      } catch (error) {
+        this.renderLobbyStatus(`Lobby error: ${error.message}`)
+      }
+    }
+    poll()
+    this.lobbyPollInterval = setInterval(poll, 2000)
+  }
+
+  clearLobbyState() {
+    if (this.lobbyPollInterval) {
+      clearInterval(this.lobbyPollInterval)
+      this.lobbyPollInterval = null
+    }
+    this.lobbyId = null
+    this.lobbyToken = null
+    this.lobbyIsHost = false
+    this.renderLobbyStatus('Idle. Host or join a lobby.')
+  }
+
+  leaveLobby() {
+    this.clearLobbyState()
+  }
+
   async startNewGame() {
     try {
-      // First, create a new game via REST API to get game ID
       const response = await fetch(`${API_URL}/game/new`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           seed: null,
           planet_count: 120
@@ -674,21 +836,7 @@ class GameApp {
       }
 
       const gameData = await response.json()
-      const gameId = gameData.game_id
-      
-      console.log('Created new game:', gameId)
-      
-      // Now connect to WebSocket with the game ID
-      this.socket = new SocketClient(`${WS_URL}/ws/${gameId}`)
-      this.socket.onOpen = () => {
-        console.log('Connected to game server')
-        this.updateHUD()
-      }
-      this.socket.onClose = () => {
-        console.log('Disconnected from game server')
-      }
-      this.socket.onMessage = (msg) => this.handleMessage(msg)
-      this.socket.connect()
+      await this.connectToGame(gameData.game_id)
       
     } catch (error) {
       console.error('Error starting new game:', error)
@@ -696,7 +844,40 @@ class GameApp {
     }
   }
 
+  async connectToGame(gameId, token = null) {
+    if (!gameId) return
+    if (this.lobbyPollInterval) {
+      clearInterval(this.lobbyPollInterval)
+      this.lobbyPollInterval = null
+    }
+    this.socket?.close()
+    this.connectionOnline = false
+    this.playersOnline = 0
+    this.updateConnectionHUD()
+
+    const wsUrl = token ? `${WS_URL}/ws/${gameId}?token=${encodeURIComponent(token)}` : `${WS_URL}/ws/${gameId}`
+    this.socket = new SocketClient(wsUrl)
+    this.socket.onOpen = () => {
+      this.connectionOnline = true
+      this.updateConnectionHUD()
+      this.updateHUD()
+    }
+    this.socket.onClose = () => {
+      this.connectionOnline = false
+      this.playersOnline = 0
+      this.updateConnectionHUD()
+    }
+    this.socket.onMessage = (msg) => this.handleMessage(msg)
+    this.socket.connect()
+  }
+
   handleMessage(msg) {
+    if (msg.type === 'welcome') {
+      this.connectionOnline = !!msg.data?.connected
+      this.playersOnline = Number(msg.data?.players_online ?? 0)
+      this.updateConnectionHUD()
+      return
+    }
     if (msg.type === 'state') {
       this.gameState = msg.data
       this.gameId = msg.data.id          // serializer uses 'id' not 'game_id'
@@ -715,6 +896,10 @@ class GameApp {
       this.updateHUD()
     } else if (msg.type === 'tick') {
       if (!this.gameState) return
+      if (msg.players_online != null) {
+        this.playersOnline = Number(msg.players_online)
+        this.updateConnectionHUD()
+      }
       this.applyDelta(msg.data)
     }
   }
@@ -1047,10 +1232,14 @@ class GameApp {
     this.closeDashboard()
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
     this.socket?.close()
+    this.connectionOnline = false
+    this.playersOnline = 0
+    this.updateConnectionHUD()
     this.gameState = null
     this.planetRenderers = {}
     this.selectedPlanet = null
     this.selectedShips = new Set()
+    this.clearLobbyState()
     this.startGame()  // shows start screen
   }
 
@@ -1267,6 +1456,7 @@ class GameApp {
     })
 
     if (clickedShip) {
+      if (clickedShip.owner !== this.gameState.player_faction_id) return
       // Toggle ship selection
       if (this.selectedShips.has(clickedShip.id)) {
         this.selectedShips.delete(clickedShip.id)
@@ -1373,7 +1563,8 @@ class GameApp {
 
     // Find ships within the selection box
     const shipsInBox = this.gameState.ships.filter(s => {
-      return s.x >= worldX1 && s.x <= worldX2 && 
+          return s.owner === this.gameState.player_faction_id &&
+            s.x >= worldX1 && s.x <= worldX2 && 
              s.y >= worldY1 && s.y <= worldY2
     })
 
@@ -1404,6 +1595,10 @@ window.toggleDashboard = () => window.gameApp?.toggleDashboard()
 window.goToMenu = () => window.gameApp?.goToMenu()
 window.setEnergy = (level) => window.gameApp?.setEnergy(level)
 window.stopShips = () => window.gameApp?.stopShips()
+window.hostLobby = () => window.gameApp?.hostLobby()
+window.joinLobby = () => window.gameApp?.joinLobby()
+window.startLobbyMatch = () => window.gameApp?.startLobbyMatch()
+window.leaveLobby = () => window.gameApp?.leaveLobby()
 
 // Start the game when DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {

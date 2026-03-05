@@ -2,6 +2,7 @@ import asyncio
 import json
 import os
 import uuid
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -33,6 +34,50 @@ SAVES_DIR.mkdir(exist_ok=True)
 
 games:       dict[str, GameState]      = {}
 connections: dict[str, list[WebSocket]] = {}
+connection_meta: dict[str, dict[int, dict]] = {}
+
+lobbies: dict[str, "Lobby"] = {}
+game_access_tokens: dict[str, set[str]] = {}
+game_players_by_token: dict[str, dict[str, dict]] = {}
+
+
+@dataclass
+class LobbyMember:
+    token: str
+    name: str
+    slot: int
+    is_host: bool = False
+
+
+@dataclass
+class Lobby:
+    id: str
+    max_players: int
+    seed: int
+    planet_count: int
+    status: str = "waiting"   # waiting | started
+    game_id: Optional[str] = None
+    members: list[LobbyMember] = field(default_factory=list)
+
+    def host(self) -> Optional[LobbyMember]:
+        return next((m for m in self.members if m.is_host), None)
+
+    def to_dict(self) -> dict:
+        return {
+            "lobby_id": self.id,
+            "max_players": self.max_players,
+            "player_count": len(self.members),
+            "status": self.status,
+            "game_id": self.game_id,
+            "players": [
+                {
+                    "name": m.name,
+                    "slot": m.slot,
+                    "is_host": m.is_host,
+                }
+                for m in sorted(self.members, key=lambda x: x.slot)
+            ],
+        }
 
 
 # ── Request models ────────────────────────────────────────────────────────────
@@ -42,20 +87,129 @@ class NewGameRequest(BaseModel):
     planet_count: Optional[int] = 120
 
 
+class LobbyCreateRequest(BaseModel):
+    seed: Optional[int] = None
+    planet_count: Optional[int] = 120
+    max_players: int = 6
+    host_name: str = "Host"
+
+
+class LobbyJoinRequest(BaseModel):
+    name: str = "Player"
+
+
+class LobbyStartRequest(BaseModel):
+    host_token: str
+
+
+def _create_game(seed: Optional[int], planet_count: Optional[int]) -> tuple[str, GameState]:
+    game_id = str(uuid.uuid4())[:8]
+    game_seed = seed if seed is not None else int(uuid.uuid4().int % 1_000_000)
+    state = GameState.create(game_id=game_id, seed=game_seed, planet_count=planet_count or 120)
+    games[game_id] = state
+    connections[game_id] = []
+    connection_meta[game_id] = {}
+    asyncio.create_task(game_loop(game_id))
+    return game_id, state
+
+
 # ── REST endpoints ────────────────────────────────────────────────────────────
 
 @app.post("/game/new")
 async def new_game(req: NewGameRequest):
-    game_id = str(uuid.uuid4())[:8]
-    seed    = req.seed if req.seed is not None else int(uuid.uuid4().int % 1_000_000)
-    state   = GameState.create(game_id=game_id, seed=seed, planet_count=req.planet_count or 120)
-    games[game_id]       = state
-    connections[game_id] = []
-    asyncio.create_task(game_loop(game_id))
+    game_id, state = _create_game(req.seed, req.planet_count)
     return {
         "game_id": game_id,
         "seed": state.seed,
         "planet_count": len(state.planets),
+    }
+
+
+@app.post("/lobby/create")
+async def create_lobby(req: LobbyCreateRequest):
+    max_players = max(2, min(6, int(req.max_players)))
+    lobby_id = str(uuid.uuid4())[:6].upper()
+    host_token = uuid.uuid4().hex
+    host_name = (req.host_name or "Host").strip()[:20] or "Host"
+    seed = req.seed if req.seed is not None else int(uuid.uuid4().int % 1_000_000)
+
+    lobby = Lobby(
+        id=lobby_id,
+        max_players=max_players,
+        seed=seed,
+        planet_count=req.planet_count or 120,
+        members=[LobbyMember(token=host_token, name=host_name, slot=1, is_host=True)],
+    )
+    lobbies[lobby_id] = lobby
+
+    return {
+        "lobby": lobby.to_dict(),
+        "your_token": host_token,
+    }
+
+
+@app.get("/lobby/{lobby_id}")
+async def get_lobby(lobby_id: str):
+    lobby = lobbies.get(lobby_id.upper())
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found")
+    return {"lobby": lobby.to_dict()}
+
+
+@app.post("/lobby/{lobby_id}/join")
+async def join_lobby(lobby_id: str, req: LobbyJoinRequest):
+    lobby = lobbies.get(lobby_id.upper())
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found")
+    if lobby.status != "waiting":
+        raise HTTPException(status_code=409, detail="Lobby already started")
+    if len(lobby.members) >= lobby.max_players:
+        raise HTTPException(status_code=409, detail="Lobby is full")
+
+    token = uuid.uuid4().hex
+    used_slots = {m.slot for m in lobby.members}
+    slot = next((s for s in range(1, lobby.max_players + 1) if s not in used_slots), len(lobby.members) + 1)
+    player_name = (req.name or "Player").strip()[:20] or f"Player{slot}"
+    lobby.members.append(LobbyMember(token=token, name=player_name, slot=slot, is_host=False))
+
+    return {
+        "lobby": lobby.to_dict(),
+        "your_token": token,
+    }
+
+
+@app.post("/lobby/{lobby_id}/start")
+async def start_lobby(lobby_id: str, req: LobbyStartRequest):
+    lobby = lobbies.get(lobby_id.upper())
+    if not lobby:
+        raise HTTPException(status_code=404, detail="Lobby not found")
+    host = lobby.host()
+    if not host or req.host_token != host.token:
+        raise HTTPException(status_code=403, detail="Only host can start")
+    if lobby.status != "waiting":
+        raise HTTPException(status_code=409, detail="Lobby already started")
+
+    game_id, state = _create_game(lobby.seed, lobby.planet_count)
+    lobby.status = "started"
+    lobby.game_id = game_id
+
+    game_access_tokens[game_id] = {m.token for m in lobby.members}
+    game_players_by_token[game_id] = {
+        m.token: {
+            "name": m.name,
+            "slot": m.slot,
+            "faction_id": state.player_faction_id,
+        }
+        for m in lobby.members
+    }
+
+    return {
+        "lobby": lobby.to_dict(),
+        "game": {
+            "game_id": game_id,
+            "seed": state.seed,
+            "planet_count": len(state.planets),
+        },
     }
 
 
@@ -106,6 +260,7 @@ async def load_game(filename: str):
     state.running = True
     games[new_id]       = state
     connections[new_id] = []
+    connection_meta[new_id] = {}
     asyncio.create_task(game_loop(new_id))
     return {"game_id": new_id, "seed": state.seed, "tick": state.tick}
 
@@ -118,22 +273,49 @@ async def websocket_endpoint(websocket: WebSocket, game_id: str):
         await websocket.close(code=4004, reason="Game not found")
         return
 
+    token = websocket.query_params.get("token")
+    allowed_tokens = game_access_tokens.get(game_id)
+    if allowed_tokens is not None and token not in allowed_tokens:
+        await websocket.close(code=4401, reason="Unauthorized")
+        return
+
+    player_info = {}
+    if token and game_players_by_token.get(game_id):
+        player_info = game_players_by_token[game_id].get(token, {})
+
     await websocket.accept()
     connections[game_id].append(websocket)
+    connection_meta.setdefault(game_id, {})[id(websocket)] = {
+        "token": token,
+        "name": player_info.get("name", "Guest"),
+        "slot": player_info.get("slot"),
+        "faction_id": player_info.get("faction_id", games[game_id].player_faction_id),
+    }
     try:
+        await websocket.send_json({
+            "type": "welcome",
+            "data": {
+                "connected": True,
+                "players_online": len(connections.get(game_id, [])),
+                "you": connection_meta[game_id][id(websocket)],
+            },
+        })
         await websocket.send_json({"type": "state", "data": serialize_state(games[game_id])})
         async for message in websocket.iter_json():
-            await handle_input(game_id, message)
+            actor_faction_id = connection_meta.get(game_id, {}).get(id(websocket), {}).get("faction_id", games[game_id].player_faction_id)
+            await handle_input(game_id, message, actor_faction_id)
     except WebSocketDisconnect:
         pass
     finally:
         if websocket in connections.get(game_id, []):
             connections[game_id].remove(websocket)
+        if id(websocket) in connection_meta.get(game_id, {}):
+            connection_meta[game_id].pop(id(websocket), None)
 
 
 # ── Input handling ────────────────────────────────────────────────────────────
 
-async def handle_input(game_id: str, message: dict) -> None:
+async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> None:
     state = games.get(game_id)
     if not state:
         return
@@ -147,7 +329,7 @@ async def handle_input(game_id: str, message: dict) -> None:
         target = message.get("target", {})
         for sid in ship_ids:
             ship = ship_map.get(sid)
-            if not ship or ship.owner != "player":
+            if not ship or ship.owner != actor_faction_id:
                 continue
             if "planet_id" in target:
                 planet = planet_map.get(target["planet_id"])
@@ -168,13 +350,13 @@ async def handle_input(game_id: str, message: dict) -> None:
         level = max(0.1, min(1.0, float(message.get("level", 1.0))))
         for sid in ship_ids:
             ship = ship_map.get(sid)
-            if ship and ship.owner == "player":
+            if ship and ship.owner == actor_faction_id:
                 ship.energy_level = level
 
     elif msg_type == "stop":
         for sid in ship_ids:
             ship = ship_map.get(sid)
-            if ship and ship.owner == "player":
+            if ship and ship.owner == actor_faction_id:
                 ship.state     = "idle"
                 ship.target_x  = None
                 ship.target_y  = None
@@ -185,8 +367,8 @@ async def handle_input(game_id: str, message: dict) -> None:
         item_type = message.get("item_type")   # "building" or "ship"
         item_name = message.get("item_name")
         planet    = planet_map.get(planet_id)
-        faction   = {f.id: f for f in state.factions}.get("player")
-        if not planet or planet.owner != "player" or not faction:
+        faction   = {f.id: f for f in state.factions}.get(actor_faction_id)
+        if not planet or planet.owner != actor_faction_id or not faction:
             return
         queue_capacity = 2 + max(0, planet.level - 1)
         if len(planet.build_queue) >= queue_capacity:
@@ -259,7 +441,11 @@ async def game_loop(game_id: str) -> None:
 
         for ws in connections.get(game_id, []):
             try:
-                await ws.send_json({"type": "tick", "data": delta})
+                await ws.send_json({
+                    "type": "tick",
+                    "data": delta,
+                    "players_online": len(connections.get(game_id, [])),
+                })
             except Exception:
                 dead_connections.append(ws)
 
@@ -282,3 +468,4 @@ async def game_loop(game_id: str) -> None:
         await asyncio.sleep(sleep_for)
 
     connections.pop(game_id, None)
+    connection_meta.pop(game_id, None)
