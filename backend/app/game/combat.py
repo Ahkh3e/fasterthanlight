@@ -406,6 +406,11 @@ def _capture_planet(
     planet: Planet, new_owner: str, state: GameState, faction_map: dict
 ) -> None:
     old_owner = planet.owner
+    captured_planet_id = planet.id
+
+    retreat_targets: list[Planet] = []
+    if old_owner not in (None,):
+        retreat_targets = [p for p in state.planets if p.owner == old_owner and p.id != captured_planet_id]
 
     planet.owner            = new_owner
     planet.conquest_checks  = 0
@@ -422,7 +427,7 @@ def _capture_planet(
             continue
         if old_owner is None:
             # Neutral garrison — destroy on capture
-            if ship.target_planet == planet.id:
+            if ship.target_planet == captured_planet_id:
                 ship.health = 0
                 state.tick_events.append({
                     "type":      "ship_destroyed",
@@ -430,10 +435,12 @@ def _capture_planet(
                     "killer_id": new_owner,
                 })
         else:
-            # Faction ships at this planet retreat
-            friendly = [p for p in state.planets if p.owner == old_owner and p.id != planet.id]
-            if friendly:
-                nearest = min(friendly, key=lambda p: math.dist((ship.x, ship.y), (p.x, p.y)))
+            # Only faction ships assigned to this conquered planet retreat.
+            # Keep all other fleets/orders untouched.
+            if ship.target_planet != captured_planet_id:
+                continue
+            if retreat_targets:
+                nearest = min(retreat_targets, key=lambda p: math.dist((ship.x, ship.y), (p.x, p.y)))
                 ship.state        = "retreating"
                 ship.target_ship  = None
                 ship.target_x     = float(nearest.x)

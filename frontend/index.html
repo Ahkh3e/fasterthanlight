@@ -452,6 +452,152 @@
             line-height: 1.6;
         }
 
+        .tutorial-overlay {
+            position: fixed;
+            inset: 0;
+            z-index: 9100;
+            background: rgba(6, 10, 17, 0.82);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        .tutorial-card {
+            width: min(820px, 94vw);
+            border: 2px solid #2f5f80;
+            background: linear-gradient(180deg, rgba(14, 26, 42, 0.97), rgba(8, 17, 29, 0.98));
+            box-shadow: inset 0 0 0 1px rgba(122, 231, 255, 0.14), 0 16px 44px rgba(0, 0, 0, 0.52);
+            display: flex;
+            flex-direction: column;
+            max-height: 90vh;
+        }
+
+        .tutorial-head {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 14px;
+            border-bottom: 1px solid #274962;
+            background: rgba(14, 34, 50, 0.85);
+        }
+
+        .tutorial-kicker {
+            color: #6ea7c5;
+            font-size: 10px;
+            letter-spacing: 1.4px;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .tutorial-title {
+            color: #f4cf74;
+            font-size: 18px;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .tutorial-close {
+            border: 1px solid #3a6a8a;
+            background: #14324a;
+            color: #9ed8f3;
+            font-size: 12px;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+
+        .tutorial-body {
+            padding: 14px;
+            overflow: auto;
+            color: #9fc5d8;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+
+        .tutorial-demo {
+            border: 1px solid #315774;
+            background: radial-gradient(520px 220px at 50% -30%, rgba(43, 79, 114, 0.25), transparent 65%), #08131f;
+            box-shadow: inset 0 0 0 1px rgba(122, 231, 255, 0.1);
+            margin-bottom: 12px;
+            padding: 8px;
+        }
+
+        .tutorial-demo-canvas {
+            width: 100%;
+            height: 220px;
+            border: 1px solid rgba(104, 170, 206, 0.34);
+            background: #060d16;
+            display: block;
+            image-rendering: pixelated;
+        }
+
+        .tutorial-demo-caption {
+            margin-top: 6px;
+            color: #6ea7c5;
+            font-size: 10px;
+            letter-spacing: 1.2px;
+            text-transform: uppercase;
+        }
+
+        .tutorial-text {
+            color: #b5d6e6;
+            margin-bottom: 10px;
+        }
+
+        .tutorial-list {
+            margin: 0;
+            padding-left: 18px;
+            color: #89b6ce;
+            display: grid;
+            gap: 4px;
+        }
+
+        .tutorial-foot {
+            border-top: 1px solid #274962;
+            padding: 10px 14px 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .tutorial-progress {
+            width: 100%;
+            height: 6px;
+            background: #0a1a28;
+            border: 1px solid #294960;
+        }
+
+        .tutorial-progress-fill {
+            width: 0%;
+            height: 100%;
+            background: linear-gradient(90deg, #2fd4ff, #f4cf74);
+        }
+
+        .tutorial-controls {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .tutorial-step-index {
+            color: #6d95ab;
+            font-size: 11px;
+            letter-spacing: 1.1px;
+            text-transform: uppercase;
+        }
+
+        .tutorial-btns {
+            display: flex;
+            gap: 8px;
+        }
+
+        .tutorial-btns button[disabled] {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
         .lobby-box {
             width: 360px;
             min-height: 330px;
@@ -919,6 +1065,7 @@
 
                 <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
                     <button onclick="window.gameApp?.launchNewGame()" style="width:260px;padding:14px 0;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">Play Solo</button>
+                    <button onclick="window.openTutorial?.()" style="width:260px;padding:12px 0;font-size:13px;letter-spacing:2px;background:#1d3750;color:#9fe7ff;">How To Play</button>
                     <input id="lobby-player-name" class="retro-input" placeholder="Your Name" maxlength="20" style="width:260px;" />
                     <button onclick="window.hostLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;">Host PvP Lobby (6)</button>
                     <div style="display:flex;gap:8px;align-items:center;width:260px;">
@@ -959,6 +1106,36 @@
                 <div class="lobby-roster-wrap">
                     <div class="lobby-roster-title">Players Joined</div>
                     <div id="lobby-roster" class="lobby-roster-list"></div>
+                </div>
+            </div>
+        </div>
+
+        <div id="tutorial-overlay" class="tutorial-overlay" onclick="window.gameApp?.handleTutorialBackdrop?.(event)">
+            <div class="tutorial-card">
+                <div class="tutorial-head">
+                    <div>
+                        <div class="tutorial-kicker">Interactive Guide</div>
+                        <div id="tutorial-title" class="tutorial-title">How To Play</div>
+                    </div>
+                    <button class="tutorial-close" onclick="window.closeTutorial?.()">Close ✕</button>
+                </div>
+                <div class="tutorial-body">
+                    <div class="tutorial-demo">
+                        <canvas id="tutorial-demo-canvas" class="tutorial-demo-canvas" width="760" height="220"></canvas>
+                        <div id="tutorial-demo-caption" class="tutorial-demo-caption">Interactive visual preview</div>
+                    </div>
+                    <div id="tutorial-text" class="tutorial-text"></div>
+                    <ul id="tutorial-list" class="tutorial-list"></ul>
+                </div>
+                <div class="tutorial-foot">
+                    <div class="tutorial-progress"><div id="tutorial-progress-fill" class="tutorial-progress-fill"></div></div>
+                    <div class="tutorial-controls">
+                        <div id="tutorial-step-index" class="tutorial-step-index">Step 1 / 1</div>
+                        <div class="tutorial-btns">
+                            <button id="tutorial-prev" onclick="window.prevTutorialStep?.()">Previous</button>
+                            <button id="tutorial-next" onclick="window.nextTutorialStep?.()">Next</button>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>

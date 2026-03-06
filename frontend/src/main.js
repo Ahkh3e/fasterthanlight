@@ -40,6 +40,110 @@ class GameApp {
     this.lobbyPollInterval = null
     this.lobbyPlayers = []
     this.pendingPlayerFactionId = null
+
+    this.tutorialStepIndex = 0
+    this.tutorialAnimRaf = null
+    this.tutorialAnimStart = 0
+    this.tutorialCanvas = null
+    this.tutorialCtx = null
+    this.tutorialSteps = [
+      {
+        title: 'Camera & Basic Controls',
+        text: 'Move around the galaxy and issue commands quickly. Most actions are click-driven, with keyboard shortcuts for speed.',
+        demoCaption: 'Camera panning, zoom pulses, and move command markers',
+        bullets: [
+          'Pan with WASD or by dragging left mouse.',
+          'Zoom with scroll wheel, C (out), or V (in).',
+          'Left-click selects a planet or ship.',
+          'Press Space to refocus your view on your key area.',
+          'Use this as your baseline before issuing fleet commands.',
+        ],
+      },
+      {
+        title: 'Ship Selection & Movement',
+        text: 'This is the core micro loop: select, group, and reposition fleets with fast commands.',
+        demoCaption: 'Drag-box selection, move target marker, and formation travel',
+        bullets: [
+          'Single-select: left-click a ship to inspect or command one unit.',
+          'Multi-select: hold Shift/Ctrl and drag a box to capture nearby ships.',
+          'Issue move: right-click destination to send the entire selection.',
+          'Quick command: press F to send currently selected ships to your cursor.',
+          'Use short chained moves to dodge fire and keep fleet spacing tight.',
+        ],
+      },
+      {
+        title: 'Resources & HUD',
+        text: 'Your empire runs on Credits and Research Points. Keep an eye on HUD values to avoid stalling production.',
+        demoCaption: 'Credits and research bars rise as your empire develops',
+        bullets: [
+          'Cr is your currency for ships, buildings, and upgrades.',
+          'RP unlocks higher tech tiers over time.',
+          'Income/s reflects current credit flow from owned planets.',
+          'Faction panel (top-left) shows each faction\'s planets and fleets.',
+          'Selection panel (bottom-right) lists selected ship counts by type.',
+        ],
+      },
+      {
+        title: 'Planets & Dashboard',
+        text: 'Planets are your production and defense hubs. Open the dashboard to manage each one.',
+        demoCaption: 'Planet is selected and dashboard stats update live',
+        bullets: [
+          'Select a planet to inspect ownership, level, population, and defense.',
+          'Press Q or click dashboard controls to queue level ups and production.',
+          'Higher-level planets unlock stronger economy and construction options.',
+          'Build queue has limited slots, so prioritize upgrades for key worlds.',
+          'Use defensive worlds on chokepoints and economic worlds in safer lanes.',
+        ],
+      },
+      {
+        title: 'Ships & Combat Roles',
+        text: 'Different ship types fill different battlefield jobs. Build mixed fleets for better outcomes.',
+        demoCaption: 'Fleet formation, projectile fire, and impact bursts',
+        bullets: [
+          'Fighter: cheap and fast skirmisher.',
+          'Cruiser/Bomber: strong mid-tier damage dealers.',
+          'Carrier: launches support pressure over time.',
+          'Dreadnought: expensive heavy frontline unit.',
+          'Mothership: top-tier anchor unit; support it with escorts.',
+        ],
+      },
+      {
+        title: 'Buildings & Economy',
+        text: 'Buildings specialize planets for income, research, production, and defense.',
+        demoCaption: 'Building slots fill and economy output scales upward',
+        bullets: [
+          'Extractor and Trade Hub improve credit generation.',
+          'Research Lab increases RP gain toward next tiers.',
+          'Shipyard improves military production flow.',
+          'Defense Platform and Orbital Cannon help hold territory.',
+          'Balance eco planets with frontline military planets.',
+        ],
+      },
+      {
+        title: 'Tech Tiers & Fleet Upgrades',
+        text: 'The Tier panel tracks unlock progress and lets you buy permanent faction-wide fleet perks.',
+        demoCaption: 'Tier progression and fleet perk levels increasing over time',
+        bullets: [
+          'Open Tier Progress from the HUD to see RP + planet level requirements.',
+          'Tier 2 and 3 unlock stronger ships and strategic options.',
+          'Fleet upgrades: Speed, Health, Damage (stack across the match).',
+          'Upgrade costs scale per level, so buy with timing in mind.',
+          'Use upgrades to match your strategy: rush, sustain, or burst.',
+        ],
+      },
+      {
+        title: 'PvP Lobby & Match Flow',
+        text: 'Use the home menu lobby tools to host or join multiplayer games quickly.',
+        demoCaption: 'Host/share code, players join, and match starts sequence',
+        bullets: [
+          'Enter your player name first.',
+          'Host creates a lobby code; use Copy for sharing.',
+          'Joiners can paste the code with the Paste button and click Join.',
+          'Host starts match once players are ready.',
+          'At game end, summary screen shows planets, kills/deaths, and ship stats.',
+        ],
+      },
+    ]
     
     // Game state
     this.zoom = 1.0
@@ -81,6 +185,7 @@ class GameApp {
     this.boxStartY = 0
     this.boxCurrentX = 0
     this.boxCurrentY = 0
+    this.boxSelectionUnion = false
     this.lastBoxX = undefined
     this.lastBoxY = undefined
     this.lastBoxW = 0
@@ -222,6 +327,7 @@ class GameApp {
         if (e.ctrlKey || e.shiftKey) {
           // Start drawing selection box
           this.isDrawingBox = true
+          this.boxSelectionUnion = !!e.shiftKey
           const rect = this.canvas.getBoundingClientRect()
           this.boxStartX = e.clientX - rect.left
           this.boxStartY = e.clientY - rect.top
@@ -268,6 +374,7 @@ class GameApp {
       } else if (this.isDrawingBox) {
         this.completeSelectionBox()
         this.isDrawingBox = false
+        this.boxSelectionUnion = false
       }
     })
 
@@ -358,6 +465,11 @@ class GameApp {
 
       // Escape — close dashboard
       if (e.key === 'Escape') {
+        const tutorial = document.getElementById('tutorial-overlay')
+        if (tutorial && tutorial.style.display !== 'none') {
+          this.closeTutorial()
+          return
+        }
         const dash = document.getElementById('dashboard')
         if (dash && dash.style.display !== 'none') {
           this.closeDashboard()
@@ -391,6 +503,7 @@ class GameApp {
     this.updateHUD()
     this.updateConnectionHUD()
     this.setupLobbyUI()
+    this.setupTutorialUI()
 
     const unlockAudio = () => this.audio.unlock()
     window.addEventListener('pointerdown', unlockAudio, { once: true })
@@ -400,6 +513,395 @@ class GameApp {
     
     // Setup dashboard
     this.setupDashboard()
+  }
+
+  setupTutorialUI() {
+    this.tutorialCanvas = document.getElementById('tutorial-demo-canvas')
+    this.tutorialCtx = this.tutorialCanvas?.getContext('2d') || null
+    this.renderTutorialStep()
+  }
+
+  handleTutorialBackdrop(evt) {
+    if (evt?.target?.id === 'tutorial-overlay') this.closeTutorial()
+  }
+
+  openTutorial() {
+    const overlay = document.getElementById('tutorial-overlay')
+    if (!overlay) return
+    this.tutorialStepIndex = 0
+    this.renderTutorialStep()
+    overlay.style.display = 'flex'
+    this._startTutorialAnimation()
+    this.audio.playSfx('click')
+  }
+
+  closeTutorial() {
+    const overlay = document.getElementById('tutorial-overlay')
+    if (!overlay) return
+    overlay.style.display = 'none'
+    this._stopTutorialAnimation()
+  }
+
+  prevTutorialStep() {
+    if (this.tutorialStepIndex <= 0) return
+    this.tutorialStepIndex -= 1
+    this.renderTutorialStep()
+    this.audio.playSfx('click')
+  }
+
+  nextTutorialStep() {
+    if (this.tutorialStepIndex >= this.tutorialSteps.length - 1) {
+      this.closeTutorial()
+      this.audio.playSfx('click')
+      return
+    }
+    this.tutorialStepIndex += 1
+    this.renderTutorialStep()
+    this.audio.playSfx('click')
+  }
+
+  renderTutorialStep() {
+    const titleEl = document.getElementById('tutorial-title')
+    const textEl = document.getElementById('tutorial-text')
+    const listEl = document.getElementById('tutorial-list')
+    const indexEl = document.getElementById('tutorial-step-index')
+    const fillEl = document.getElementById('tutorial-progress-fill')
+    const capEl = document.getElementById('tutorial-demo-caption')
+    const prevBtn = document.getElementById('tutorial-prev')
+    const nextBtn = document.getElementById('tutorial-next')
+    if (!titleEl || !textEl || !listEl || !indexEl || !fillEl || !prevBtn || !nextBtn) return
+
+    const total = this.tutorialSteps.length
+    const idx = Math.max(0, Math.min(this.tutorialStepIndex, total - 1))
+    const step = this.tutorialSteps[idx]
+    this.tutorialStepIndex = idx
+
+    titleEl.textContent = step.title
+    textEl.textContent = step.text
+    if (capEl) capEl.textContent = step.demoCaption || 'Interactive visual preview'
+    listEl.innerHTML = step.bullets.map(item => `<li>${item}</li>`).join('')
+    indexEl.textContent = `Step ${idx + 1} / ${total}`
+    fillEl.style.width = `${Math.round(((idx + 1) / total) * 100)}%`
+    prevBtn.disabled = idx === 0
+    nextBtn.textContent = idx === total - 1 ? 'Finish' : 'Next'
+  }
+
+  _startTutorialAnimation() {
+    if (this.tutorialAnimRaf) return
+    this.tutorialAnimStart = performance.now()
+    const loop = (now) => {
+      this._renderTutorialDemo(now)
+      this.tutorialAnimRaf = requestAnimationFrame(loop)
+    }
+    this.tutorialAnimRaf = requestAnimationFrame(loop)
+  }
+
+  _stopTutorialAnimation() {
+    if (!this.tutorialAnimRaf) return
+    cancelAnimationFrame(this.tutorialAnimRaf)
+    this.tutorialAnimRaf = null
+  }
+
+  _renderTutorialDemo(now) {
+    const overlay = document.getElementById('tutorial-overlay')
+    if (!overlay || overlay.style.display === 'none') return
+    const c = this.tutorialCanvas
+    const g = this.tutorialCtx
+    if (!c || !g) return
+
+    const t = (now - this.tutorialAnimStart) / 1000
+    const w = c.width
+    const h = c.height
+
+    g.fillStyle = '#060d16'
+    g.fillRect(0, 0, w, h)
+
+    for (let i = 0; i < 60; i++) {
+      const x = (i * 137 % w + t * 12 * (1 + (i % 3))) % w
+      const y = (i * 71) % h
+      g.fillStyle = i % 7 === 0 ? 'rgba(180,210,255,0.9)' : 'rgba(100,140,180,0.6)'
+      g.fillRect(x, y, 1, 1)
+    }
+
+    const scene = this.tutorialStepIndex
+    if (scene === 0) this._drawTutorialSceneControls(g, w, h, t)
+    else if (scene === 1) this._drawTutorialSceneSelection(g, w, h, t)
+    else if (scene === 2) this._drawTutorialSceneResources(g, w, h, t)
+    else if (scene === 3) this._drawTutorialScenePlanet(g, w, h, t)
+    else if (scene === 4) this._drawTutorialSceneCombat(g, w, h, t)
+    else if (scene === 5) this._drawTutorialSceneBuildings(g, w, h, t)
+    else if (scene === 6) this._drawTutorialSceneTiers(g, w, h, t)
+    else this._drawTutorialSceneLobby(g, w, h, t)
+  }
+
+  _drawTutorialPlanet(g, x, y, r, core = '#2fd4ff', ring = 'rgba(122,231,255,0.35)') {
+    g.beginPath()
+    g.arc(x, y, r + 5, 0, Math.PI * 2)
+    g.strokeStyle = ring
+    g.lineWidth = 2
+    g.stroke()
+    g.beginPath()
+    g.arc(x, y, r, 0, Math.PI * 2)
+    g.fillStyle = core
+    g.fill()
+  }
+
+  _drawTutorialShip(g, x, y, color = '#9fe7ff', size = 6) {
+    g.beginPath()
+    g.moveTo(x + size, y)
+    g.lineTo(x - size, y - size * 0.7)
+    g.lineTo(x - size * 0.6, y)
+    g.lineTo(x - size, y + size * 0.7)
+    g.closePath()
+    g.fillStyle = color
+    g.fill()
+  }
+
+  _drawTutorialSceneControls(g, w, h, t) {
+    const cx = w * 0.5 + Math.sin(t * 0.8) * 35
+    const cy = h * 0.5 + Math.cos(t * 0.7) * 18
+    this._drawTutorialPlanet(g, cx, cy, 20, '#27c8ef')
+
+    const zoomPulse = 1 + Math.sin(t * 2.2) * 0.18
+    g.strokeStyle = 'rgba(244,207,116,0.8)'
+    g.lineWidth = 2
+    g.strokeRect(cx - 50 * zoomPulse, cy - 34 * zoomPulse, 100 * zoomPulse, 68 * zoomPulse)
+
+    const shipX = 120 + (t * 70 % 440)
+    const shipY = 50 + Math.sin(t * 2) * 10
+    this._drawTutorialShip(g, shipX, shipY, '#8bf0b2')
+
+    g.beginPath()
+    g.setLineDash([6, 5])
+    g.moveTo(shipX, shipY)
+    g.lineTo(cx + 90, cy + 30)
+    g.strokeStyle = 'rgba(111,232,255,0.7)'
+    g.stroke()
+    g.setLineDash([])
+
+    g.fillStyle = '#f4cf74'
+    g.beginPath()
+    g.arc(cx + 90, cy + 30, 4 + Math.sin(t * 8) * 1.3, 0, Math.PI * 2)
+    g.fill()
+  }
+
+  _drawTutorialSceneSelection(g, w, h, t) {
+    const baseX = 170
+    const baseY = 72
+    const spacing = 38
+    const ships = []
+    for (let row = 0; row < 2; row++) {
+      for (let col = 0; col < 3; col++) {
+        ships.push({
+          x: baseX + col * spacing + Math.sin(t * 1.2 + col + row) * 2,
+          y: baseY + row * spacing + Math.cos(t * 1.4 + col * 0.4) * 2,
+        })
+      }
+    }
+
+    for (const s of ships) this._drawTutorialShip(g, s.x, s.y, '#8bf0b2', 6)
+
+    const selectPulse = 0.75 + (Math.sin(t * 3.5) + 1) * 0.15
+    g.strokeStyle = `rgba(122,231,255,${selectPulse})`
+    g.lineWidth = 2
+    g.strokeRect(130, 44, 150, 92)
+
+    g.fillStyle = '#6ea7c5'
+    g.font = '11px Courier New'
+    g.fillText('Shift/Ctrl + Drag = Box Select', 112, 160)
+
+    const targetX = 560 + Math.sin(t * 0.9) * 25
+    const targetY = 110 + Math.cos(t * 0.7) * 18
+    g.beginPath()
+    g.arc(targetX, targetY, 8 + Math.sin(t * 6) * 1.2, 0, Math.PI * 2)
+    g.strokeStyle = '#f4cf74'
+    g.stroke()
+
+    g.beginPath()
+    g.setLineDash([5, 5])
+    g.moveTo(250, 90)
+    g.lineTo(targetX, targetY)
+    g.strokeStyle = 'rgba(244,207,116,0.85)'
+    g.stroke()
+    g.setLineDash([])
+
+    const progress = (Math.sin(t * 1.2) + 1) * 0.5
+    for (let i = 0; i < ships.length; i++) {
+      const sx = ships[i].x
+      const sy = ships[i].y
+      const tx = targetX - 28 + (i % 3) * 24
+      const ty = targetY - 20 + Math.floor(i / 3) * 20
+      const mx = sx + (tx - sx) * progress
+      const my = sy + (ty - sy) * progress
+      this._drawTutorialShip(g, mx, my, '#7ae7ff', 5)
+    }
+  }
+
+  _drawTutorialSceneResources(g, w, h, t) {
+    const cr = Math.min(1, (Math.sin(t * 1.1) + 1) * 0.5 * 0.9 + 0.1)
+    const rp = Math.min(1, (Math.sin(t * 0.9 + 1.1) + 1) * 0.5 * 0.75 + 0.2)
+    const fleet = Math.min(1, (Math.sin(t * 0.7 + 2.1) + 1) * 0.5 * 0.7 + 0.25)
+    const bar = (x, y, label, pct, col) => {
+      g.fillStyle = '#112336'
+      g.fillRect(x, y, 280, 20)
+      g.fillStyle = col
+      g.fillRect(x, y, 280 * pct, 20)
+      g.strokeStyle = '#2a4c6d'
+      g.strokeRect(x, y, 280, 20)
+      g.fillStyle = '#b5d6e6'
+      g.font = '12px Courier New'
+      g.fillText(`${label} ${Math.round(pct * 100)}%`, x + 8, y + 14)
+    }
+    bar(60, 55, 'Credits', cr, '#00e8cc')
+    bar(60, 92, 'Research', rp, '#a78bfa')
+    bar(60, 129, 'Fleet Power', fleet, '#fbbf24')
+
+    const pulse = 0.4 + (Math.sin(t * 4) + 1) * 0.3
+    g.fillStyle = `rgba(0,232,204,${pulse})`
+    g.fillRect(370, 65, 180, 48)
+    g.fillStyle = '#0b1a26'
+    g.font = 'bold 13px Courier New'
+    g.fillText('+ Income Tick', 388, 92)
+  }
+
+  _drawTutorialScenePlanet(g, w, h, t) {
+    this._drawTutorialPlanet(g, 180, 110, 32, '#35d6ff')
+    this._drawTutorialPlanet(g, 330, 78, 22, '#5ad28c')
+    this._drawTutorialPlanet(g, 420, 148, 18, '#f4cf74')
+
+    const pulse = 0.5 + (Math.sin(t * 3) + 1) * 0.25
+    g.strokeStyle = `rgba(111,232,255,${pulse})`
+    g.lineWidth = 3
+    g.strokeRect(146, 76, 68, 68)
+
+    g.fillStyle = 'rgba(12,26,43,0.94)'
+    g.fillRect(500, 38, 220, 144)
+    g.strokeStyle = '#2f5f80'
+    g.strokeRect(500, 38, 220, 144)
+    g.fillStyle = '#7ae7ff'
+    g.font = 'bold 12px Courier New'
+    g.fillText('PLANET DASHBOARD', 512, 58)
+    g.fillStyle = '#9fc5d8'
+    g.font = '11px Courier New'
+    g.fillText('Income: +12.4/s', 512, 82)
+    g.fillText('Population: 64', 512, 101)
+    g.fillText(`Level: ${2 + Math.floor((Math.sin(t) + 1) * 1.4)}`, 512, 120)
+    g.fillText('Queue: Shipyard, Level Up', 512, 139)
+    g.fillText('Defense: 78%', 512, 158)
+  }
+
+  _drawTutorialSceneCombat(g, w, h, t) {
+    const leftBase = 120
+    const rightBase = 620
+    for (let i = 0; i < 4; i++) {
+      this._drawTutorialShip(g, leftBase + i * 34 + Math.sin(t * 2 + i) * 6, 80 + i * 24, '#76f7d2', 6)
+      this._drawTutorialShip(g, rightBase - i * 34 - Math.cos(t * 2 + i) * 6, 80 + i * 24, '#ff9fa9', 6)
+    }
+
+    for (let i = 0; i < 5; i++) {
+      const p = (t * 1.6 + i * 0.2) % 1
+      const x = 190 + p * 420
+      const y = 90 + i * 22
+      g.fillStyle = '#ffd58a'
+      g.fillRect(x, y, 8, 2)
+    }
+
+    const boom = (Math.sin(t * 5) + 1) * 0.5
+    g.beginPath()
+    g.arc(390, 112, 10 + boom * 14, 0, Math.PI * 2)
+    g.fillStyle = `rgba(255,180,100,${0.25 + boom * 0.4})`
+    g.fill()
+
+    g.fillStyle = '#b6d6ea'
+    g.font = '11px Courier New'
+    g.fillText('Mixed fleet > single-unit spam', 270, 194)
+  }
+
+  _drawTutorialSceneBuildings(g, w, h, t) {
+    this._drawTutorialPlanet(g, 160, 110, 30, '#27c8ef')
+    const labels = ['Extractor', 'Trade Hub', 'Research Lab', 'Shipyard', 'Defense']
+    for (let i = 0; i < labels.length; i++) {
+      const x = 280 + (i % 2) * 190
+      const y = 42 + Math.floor(i / 2) * 56
+      const active = ((t * 1.2 + i * 0.5) % 3) > 1
+      g.fillStyle = active ? 'rgba(76,170,102,0.7)' : 'rgba(21,43,62,0.86)'
+      g.fillRect(x, y, 166, 40)
+      g.strokeStyle = active ? '#70d18a' : '#355a77'
+      g.strokeRect(x, y, 166, 40)
+      g.fillStyle = '#b7d8ea'
+      g.font = '11px Courier New'
+      g.fillText(labels[i], x + 10, y + 24)
+    }
+
+    const income = 20 + Math.round((Math.sin(t * 1.5) + 1) * 18)
+    g.fillStyle = '#f4cf74'
+    g.font = 'bold 12px Courier New'
+    g.fillText(`Planet Income: +${income}/s`, 36, 190)
+  }
+
+  _drawTutorialSceneTiers(g, w, h, t) {
+    g.fillStyle = 'rgba(11,22,33,0.94)'
+    g.fillRect(70, 30, 620, 160)
+    g.strokeStyle = '#335974'
+    g.strokeRect(70, 30, 620, 160)
+
+    const tierPct = Math.min(1, (Math.sin(t * 0.9) + 1) * 0.5 * 0.9 + 0.05)
+    g.fillStyle = '#112336'
+    g.fillRect(110, 56, 360, 16)
+    g.fillStyle = '#a78bfa'
+    g.fillRect(110, 56, 360 * tierPct, 16)
+    g.fillStyle = '#9fc5d8'
+    g.font = '11px Courier New'
+    g.fillText(`Research to next tier: ${Math.round(tierPct * 2000)} / 2000`, 110, 49)
+
+    const upLv = Math.floor((t * 1.1) % 6)
+    const drawUpgrade = (y, name, col) => {
+      g.fillStyle = '#0e1d2d'
+      g.fillRect(110, y, 420, 26)
+      g.strokeStyle = '#2f5f80'
+      g.strokeRect(110, y, 420, 26)
+      g.fillStyle = '#b7d7ea'
+      g.fillText(name, 122, y + 17)
+      for (let i = 0; i < 5; i++) {
+        g.fillStyle = i < upLv ? col : '#22394f'
+        g.fillRect(332 + i * 18, y + 7, 12, 12)
+      }
+    }
+    drawUpgrade(92, 'Speed Upgrade', '#53d2ff')
+    drawUpgrade(123, 'Health Upgrade', '#62f0ab')
+    drawUpgrade(154, 'Damage Upgrade', '#ff9fa9')
+  }
+
+  _drawTutorialSceneLobby(g, w, h, t) {
+    g.fillStyle = 'rgba(10,21,33,0.94)'
+    g.fillRect(74, 30, 640, 160)
+    g.strokeStyle = '#315b78'
+    g.strokeRect(74, 30, 640, 160)
+
+    const codeFlash = ((Math.sin(t * 2.6) + 1) * 0.5)
+    g.fillStyle = `rgba(122,231,255,${0.3 + codeFlash * 0.5})`
+    g.fillRect(98, 50, 220, 28)
+    g.fillStyle = '#052033'
+    g.font = 'bold 15px Courier New'
+    g.fillText('LOBBY B7Q9P2', 111, 69)
+
+    const players = ['Host', 'Nova', 'Orion', 'Valkyrie']
+    for (let i = 0; i < players.length; i++) {
+      const y = 92 + i * 22
+      g.fillStyle = 'rgba(20,40,58,0.9)'
+      g.fillRect(98, y, 280, 18)
+      g.fillStyle = '#b6d6ea'
+      g.font = '11px Courier New'
+      g.fillText(`${i + 1}. ${players[i]}${i === 0 ? ' (Host)' : ''}`, 107, y + 13)
+    }
+
+    const state = Math.floor((t * 0.8) % 3)
+    const status = state === 0 ? 'Waiting for players...' : state === 1 ? 'Players ready. Starting...' : 'Match launched!'
+    g.fillStyle = '#f4cf74'
+    g.font = '12px Courier New'
+    g.fillText(status, 420, 106)
+    g.fillStyle = '#7ae7ff'
+    g.fillText('Paste code → Join → Host starts', 420, 132)
   }
 
   updateAudioButtons() {
@@ -969,6 +1471,7 @@ class GameApp {
 
   launchNewGame() {
     this.audio.playSfx('click')
+    this.closeTutorial()
     document.getElementById('start-screen')?.style.setProperty('display', 'none')
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
     this._showMenuStars(false)
@@ -1179,6 +1682,7 @@ class GameApp {
       this.persistSession()
 
       // Hide start screen once game is live
+      this.closeTutorial()
       const ss = document.getElementById('start-screen')
       if (ss) ss.style.display = 'none'
       this._showMenuStars(false)
@@ -2090,9 +2594,11 @@ class GameApp {
              s.y >= worldY1 && s.y <= worldY2
     })
 
-    // Add ships to selection (toggle behavior)
+    // Shift-drag: additive union only. Ctrl-drag: keep existing toggle behavior.
     shipsInBox.forEach(ship => {
-      if (this.selectedShips.has(ship.id)) {
+      if (this.boxSelectionUnion) {
+        this.selectedShips.add(ship.id)
+      } else if (this.selectedShips.has(ship.id)) {
         this.selectedShips.delete(ship.id)
       } else {
         this.selectedShips.add(ship.id)
@@ -2206,6 +2712,10 @@ window.startLobbyMatch = () => window.gameApp?.startLobbyMatch()
 window.leaveLobby = () => window.gameApp?.leaveLobby()
 window.copyLobbyCode = () => window.gameApp?.copyLobbyCode()
 window.pasteLobbyCode = () => window.gameApp?.pasteLobbyCode()
+window.openTutorial = () => window.gameApp?.openTutorial()
+window.closeTutorial = () => window.gameApp?.closeTutorial()
+window.nextTutorialStep = () => window.gameApp?.nextTutorialStep()
+window.prevTutorialStep = () => window.gameApp?.prevTutorialStep()
 window.toggleSfxMute = () => window.gameApp?.toggleSfxMute()
 window.toggleMusicMute = () => window.gameApp?.toggleMusicMute()
 window.setSfxVolume = (value) => window.gameApp?.setSfxVolume(value)
