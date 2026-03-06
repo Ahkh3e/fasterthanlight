@@ -504,6 +504,7 @@ class GameApp {
     this.updateConnectionHUD()
     this.setupLobbyUI()
     this.setupTutorialUI()
+    this.setupTierDropdownInputShield()
 
     const unlockAudio = () => this.audio.unlock()
     window.addEventListener('pointerdown', unlockAudio, { once: true })
@@ -513,6 +514,15 @@ class GameApp {
     
     // Setup dashboard
     this.setupDashboard()
+  }
+
+  setupTierDropdownInputShield() {
+    const tier = document.getElementById('tier-dropdown')
+    if (!tier) return
+    const stopOnly = (e) => e.stopPropagation()
+    ;['pointerdown', 'mousedown', 'mouseup', 'mousemove', 'click', 'dblclick', 'contextmenu', 'wheel'].forEach(evt => {
+      tier.addEventListener(evt, stopOnly)
+    })
   }
 
   setupTutorialUI() {
@@ -2697,7 +2707,7 @@ window._updateTierProgress = () => {
         <div style="font-size:9px;color:#4a7080;">${u.desc}</div>
         <div style="margin-top:2px;">${dots}</div>
       </div>
-      ${maxed ? '' : `<button onclick="window._buyFleetUpgrade('${u.key}')" style="padding:4px 8px;font-size:10px;min-width:60px;opacity:${canBuy ? 1 : 0.4};pointer-events:${canBuy ? 'auto' : 'none'};" ${canBuy ? '' : 'disabled'}>💰${cost}</button>`}
+      ${maxed ? '' : `<button onmousedown="event.stopPropagation();window._buyFleetUpgrade('${u.key}')" style="padding:4px 8px;font-size:10px;min-width:60px;opacity:${canBuy ? 1 : 0.4};pointer-events:${canBuy ? 'auto' : 'none'};" ${canBuy ? '' : 'disabled'}>💰${cost}</button>`}
     </div>`
   }).join('')
 }
