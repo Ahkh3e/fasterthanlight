@@ -2689,9 +2689,9 @@ window._updateTierProgress = () => {
   if (!fuEl) return
   const fu = faction.fleet_upgrades || { speed: 0, health: 0, damage: 0 }
   const UPGRADES = [
-    { key: 'speed',  label: 'Thruster Boost', icon: '⚡', desc: '+8% ship speed/lv', base: 200, scale: 1.8, max: 5 },
-    { key: 'health', label: 'Hull Plating',   icon: '🛡', desc: '+10% ship HP/lv',   base: 250, scale: 1.8, max: 5 },
-    { key: 'damage', label: 'Weapon Systems', icon: '🗡', desc: '+8% ship damage/lv', base: 300, scale: 1.8, max: 5 },
+    { key: 'speed',  label: 'Thruster Boost', icon: '⚡', desc: '+8% ship speed/lv', base: 200, scale: 2.0, max: 5 },
+    { key: 'health', label: 'Hull Plating',   icon: '🛡', desc: '+10% ship HP/lv',   base: 250, scale: 2.0, max: 5 },
+    { key: 'damage', label: 'Weapon Systems', icon: '🗡', desc: '+8% ship damage/lv', base: 300, scale: 2.0, max: 5 },
   ]
   const credits = faction.credits || 0
   fuEl.innerHTML = UPGRADES.map(u => {
