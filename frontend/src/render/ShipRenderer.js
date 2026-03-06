@@ -14,6 +14,8 @@ const SHIP_SIZE = {
   dreadnought: { w: 10, h: 14 },
 }
 
+const ORBIT_SPEED_PER_MS = 0.015 * 20 / 1000  // 0.015 rad/tick × 20 ticks/s → rad/ms
+
 export default class ShipRenderer {
   constructor(scene) {
     this.scene      = scene
@@ -24,6 +26,15 @@ export default class ShipRenderer {
     this._ships   = []   // latest full ship list
     this._prevPos = {}   // { id: {x,y} } at start of current interpolation window
     this._nextPos = {}   // { id: {x,y} } at end of current interpolation window
+    this._tickTime = 0   // scene time of the last tick
+    this._planetMap = {} // { id: planet } for orbit rendering
+  }
+
+  /** Update planet positions for client-side orbit rendering. */
+  setPlanets(planets) {
+    const m = {}
+    for (const p of planets) m[p.id] = p
+    this._planetMap = m
   }
 
   // ── Called each tick — record new target positions ────────────────────────
@@ -39,12 +50,23 @@ export default class ShipRenderer {
     this._prevPos = prev
     this._nextPos = next
     this._ships   = ships
+    this._tickTime = this.scene.time.now
   }
 
   // ── Called each frame — draw ships at interpolated positions ──────────────
 
   drawFrame(alpha, selection, playerFactionId, factionMap) {
+    const now = this.scene.time.now
+    // Pre-compute symmetric orbit layout
+    const orbitPos = this._computeOrbitLayout(now)
+
     const lerped = this._ships.map(s => {
+      // Orbiting ships: symmetric collective layout
+      const op = orbitPos[s.id]
+      if (op) {
+        return { ...s, x: op.x, y: op.y }
+      }
+      // Non-orbiting: lerp as before
       const p = this._prevPos[s.id]
       const n = this._nextPos[s.id]
       if (!p || !n) return s
@@ -60,6 +82,63 @@ export default class ShipRenderer {
   draw(ships, selection, playerFactionId, factionMap) {
     this.updateTargets(ships)
     this.drawFrame(1, selection, playerFactionId, factionMap)
+  }
+
+  // ── Orbit layout ──────────────────────────────────────────────────────────
+
+  _computeOrbitLayout(now) {
+    const positions = {}
+    const byPlanet = {}
+    for (const s of this._ships) {
+      if (s.state === 'orbiting' && s.target_planet) {
+        ;(byPlanet[s.target_planet] ??= []).push(s)
+      }
+    }
+
+    const spinPhase = now * ORBIT_SPEED_PER_MS
+
+    for (const [planetId, group] of Object.entries(byPlanet)) {
+      const planet = this._planetMap[planetId]
+      if (!planet) continue
+
+      group.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+
+      const ringMap = {}
+      for (const s of group) {
+        const r = s.orbit_radius || 50
+        ;(ringMap[r] ??= []).push(s)
+      }
+
+      const sortedRadii = Object.keys(ringMap).map(Number).sort((a, b) => a - b)
+      const basePhase = this._hashPlanetPhase(planetId)
+
+      for (let ri = 0; ri < sortedRadii.length; ri++) {
+        const radius = sortedRadii[ri]
+        const ring = ringMap[radius]
+        const count = ring.length
+        const step = (2 * Math.PI) / count
+        const ringPhase = (ri % 2 === 1) ? step * 0.5 : 0
+        const start = basePhase + spinPhase + ringPhase
+
+        for (let i = 0; i < count; i++) {
+          const angle = start + i * step
+          positions[ring[i].id] = {
+            x: planet.x + Math.cos(angle) * radius,
+            y: planet.y + Math.sin(angle) * radius,
+          }
+        }
+      }
+    }
+
+    return positions
+  }
+
+  _hashPlanetPhase(planetId) {
+    let h = 0
+    for (let i = 0; i < planetId.length; i++) {
+      h = (h * 31 + planetId.charCodeAt(i)) >>> 0
+    }
+    return (h % 360) * Math.PI / 180
   }
 
   // ── Ships ─────────────────────────────────────────────────────────────────

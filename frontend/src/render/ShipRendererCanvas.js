@@ -5,7 +5,12 @@
  * Call onTick(ships, now) each time the server delivers new positions.
  * Call draw(selectedShips) every render frame — positions are lerped
  * between prevPos and nextPos based on time elapsed since last tick.
+ * Orbiting ships are rendered entirely client-side with no server dependency:
+ * the angle is derived from the ship’s position and advanced each frame.
  */
+
+const ORBIT_SPEED_PER_MS = 0.015 * 20 / 1000  // 0.015 rad/tick × 20 ticks/s → rad/ms
+
 export default class ShipRendererCanvas {
   constructor(canvas) {
     this.canvas          = canvas
@@ -18,6 +23,14 @@ export default class ShipRendererCanvas {
     this.playerFactionId = null
     this.factionMap      = {}
     this.headingById     = {}
+    this.planetMap       = {}   // { id: planet } — planet positions for orbit rendering
+  }
+
+  /** Update planet positions (call once on game init and when planets change). */
+  setPlanets(planets) {
+    const m = {}
+    for (const p of planets) m[p.id] = p
+    this.planetMap = m
   }
 
   // ── Called once per server tick ──────────────────────────────────────────
@@ -51,11 +64,21 @@ export default class ShipRendererCanvas {
   draw(selectedShips = new Set(), viewBounds = null) {
     if (!this.ships.length) return
 
-    const alpha = Math.min(1, (performance.now() - this.tickTime) / this.tickInterval)
+    const now = performance.now()
+    const alpha = Math.min(1, (now - this.tickTime) / this.tickInterval)
     this.ctx.imageSmoothingEnabled = false
 
-    // Lerp all ship positions for this frame
+    // Pre-compute symmetric orbit layout (ships evenly distributed per ring)
+    const orbitPos = this._computeOrbitLayout(now)
+
+    // Position all ships for this frame
     const lerped = this.ships.map(s => {
+      // Orbiting ships: symmetric collective layout
+      const op = orbitPos[s.id]
+      if (op) {
+        return { ...s, x: op.x, y: op.y, _motionDx: op.dx, _motionDy: op.dy }
+      }
+      // Non-orbiting ships: lerp between tick positions
       const p = this.prevPos[s.id]
       const n = this.nextPos[s.id]
       if (!p || !n) return s
@@ -107,6 +130,74 @@ export default class ShipRendererCanvas {
       ship.y < bounds.minY - margin ||
       ship.y > bounds.maxY + margin
     )
+  }
+
+  // ── Orbit layout ──────────────────────────────────────────────────────────
+
+  /**
+   * Compute symmetric orbit positions for all orbiting ships.
+   * Groups ships by planet, sorts by ID, distributes evenly per ring.
+   * Matches the server's _update_orbits algorithm for perfect symmetry.
+   */
+  _computeOrbitLayout(now) {
+    const positions = {}
+    const byPlanet = {}
+    for (const s of this.ships) {
+      if (s.state === 'orbiting' && s.target_planet) {
+        ;(byPlanet[s.target_planet] ??= []).push(s)
+      }
+    }
+
+    const spinPhase = now * ORBIT_SPEED_PER_MS
+
+    for (const [planetId, group] of Object.entries(byPlanet)) {
+      const planet = this.planetMap[planetId]
+      if (!planet) continue
+
+      // Sort by ID for stable ordering (matches server)
+      group.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+
+      // Group by orbit_radius (same radius = same ring)
+      const ringMap = {}
+      for (const s of group) {
+        const r = s.orbit_radius || 50
+        ;(ringMap[r] ??= []).push(s)
+      }
+
+      // Sort radii to get ring indices (innermost = 0)
+      const sortedRadii = Object.keys(ringMap).map(Number).sort((a, b) => a - b)
+      const basePhase = this._hashPlanetPhase(planetId)
+
+      for (let ri = 0; ri < sortedRadii.length; ri++) {
+        const radius = sortedRadii[ri]
+        const ring = ringMap[radius]
+        const count = ring.length
+        const step = (2 * Math.PI) / count
+        const ringPhase = (ri % 2 === 1) ? step * 0.5 : 0
+        const start = basePhase + spinPhase + ringPhase
+
+        for (let i = 0; i < count; i++) {
+          const angle = start + i * step
+          positions[ring[i].id] = {
+            x: planet.x + Math.cos(angle) * radius,
+            y: planet.y + Math.sin(angle) * radius,
+            dx: -Math.sin(angle),  // tangent for heading
+            dy:  Math.cos(angle),
+          }
+        }
+      }
+    }
+
+    return positions
+  }
+
+  /** Deterministic phase offset per planet (matches server orbit_phase_for_planet). */
+  _hashPlanetPhase(planetId) {
+    let h = 0
+    for (let i = 0; i < planetId.length; i++) {
+      h = (h * 31 + planetId.charCodeAt(i)) >>> 0
+    }
+    return (h % 360) * Math.PI / 180
   }
 
   // ── Private helpers ───────────────────────────────────────────────────────

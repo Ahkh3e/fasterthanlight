@@ -20,26 +20,18 @@ def serialize_state(state: GameState) -> dict:
 def serialize_delta(state: GameState) -> dict:
     """Partial update pushed each tick.
 
-    Includes: tick counter, status, ship updates (only moving/changing ships
-    are sent each tick; orbiting ships are sent once per second to save bandwidth),
-    faction resource totals, planet ownership snapshots, and combat events.
+    Includes: tick counter, status, all ship updates, faction resource totals,
+    planet ownership snapshots, and combat events.
+
+    Orbiting ships use a compact format (no x/y — client renders orbit locally).
+    Moving/attacking/retreating ships include velocity and target data.
     """
-    # Always send ships that are actively changing state
-    # Orbiting/idle ships only need periodic sync (~1 Hz)
-    full_sync = (state.tick % 20 == 0)
-    if full_sync:
-        ship_deltas = [_ship_delta(s) for s in state.ships]
-    else:
-        ship_deltas = [
-            _ship_delta(s) for s in state.ships
-            if s.state in ("moving", "attacking", "retreating", "idle")
-        ]
+    ship_deltas = [_ship_delta(s) for s in state.ships]
 
     return {
         "tick":     state.tick,
         "status":   state.status,
         "ships":    ship_deltas,
-        "ships_partial": not full_sync,
         "factions": [_faction_resources(f) for f in state.factions],
         "planets":  [_planet_delta(p) for p in state.planets],
         "events":   list(state.tick_events),
@@ -113,14 +105,26 @@ def _faction(f: Faction) -> dict:
 # ── Delta serialisers ─────────────────────────────────────────────────────────
 
 def _ship_delta(s: Ship) -> dict:
-    """Minimal ship update for tick deltas — position, state, health, movement info."""
+    """Minimal ship update for tick deltas.
+
+    Orbiting ships omit x/y (client renders orbit locally) but include
+    orbit_radius so the client tracks ring reassignments.
+    """
+    if s.state == "orbiting":
+        return {
+            "id":            s.id,
+            "state":         "orbiting",
+            "health":        round(s.health, 1),
+            "target_planet": s.target_planet,
+            "orbit_radius":  round(s.orbit_radius, 2),
+        }
     d = {
         "id":            s.id,
         "x":             s.x,
         "y":             s.y,
         "state":         s.state,
         "health":        round(s.health, 1),
-        "target_planet": s.target_planet,   # kept in sync so planet-click selection works
+        "target_planet": s.target_planet,
     }
     if s.state in ("moving", "retreating"):
         d["vx"]       = round(s.vx, 2)

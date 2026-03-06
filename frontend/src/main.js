@@ -1118,9 +1118,13 @@ class GameApp {
       delta.ships.forEach(ds => {
         const s = sMap[ds.id]
         if (!s) return
-        s.x = ds.x; s.y = ds.y; s.state = ds.state
+        s.state = ds.state
         if (ds.health != null) s.health = ds.health
         if ('target_planet' in ds) s.target_planet = ds.target_planet
+        // Orbiting ships: only update orbit_radius (client renders position locally)
+        if (ds.orbit_radius != null) s.orbit_radius = ds.orbit_radius
+        // Non-orbiting ships: update position and movement data
+        if (ds.x != null) { s.x = ds.x; s.y = ds.y }
         if (ds.target_x != null) { s.target_x = ds.target_x; s.target_y = ds.target_y }
         if (ds.vx != null) { s.vx = ds.vx; s.vy = ds.vy }
       })
@@ -1369,6 +1373,7 @@ class GameApp {
     if (!this.shipRenderer) {
       this.shipRenderer = new ShipRendererCanvas(this.canvas)
     }
+    this.shipRenderer.setPlanets(this.gameState.planets)
     this.shipRenderer.onTick(this.gameState.ships, performance.now(), player_faction_id, factionMap)
 
     // Center on player home
