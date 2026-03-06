@@ -155,6 +155,7 @@ export default class GalaxyScene extends Phaser.Scene {
 
     this._btnMenu = this._createHUDButton(width - 16,  60, 'MENU', () => this._goToMenu())
     this._btnSave = this._createHUDButton(width - 82,  60, 'SAVE', () => this._saveGame())
+    this._btnEnd  = this._createHUDButton(width - 148, 60, 'END GAME', () => this._endGame())
 
     // ── Bottom-left: resources + status ─────────────────────────────────────
     this.resourceText = this.add.text(16, height - 52, '⬡ —  ⚡ —  ✦ —', {
@@ -192,6 +193,7 @@ export default class GalaxyScene extends Phaser.Scene {
     this._hudSeed?.setScale(invZ).setPosition((width - 16) / z, 36 / z)
     this._btnMenu?.setScale(invZ).setPosition((width - 16) / z, 60 / z)
     this._btnSave?.setScale(invZ).setPosition((width - 82) / z, 60 / z)
+    this._btnEnd?.setScale(invZ).setPosition((width - 148) / z, 60 / z)
     this.resourceText?.setScale(invZ).setPosition(16 / z, (height - 52) / z)
     this.tickText?.setScale(invZ).setPosition(16 / z, (height - 28) / z)
     this._selectionInfo?.setScale(invZ).setPosition((width - 16) / z, (height - 100) / z)
@@ -838,6 +840,12 @@ export default class GalaxyScene extends Phaser.Scene {
     } catch (err) {
       this._setStatus(`Save failed: ${err.message}`, '#ff4444')
     }
+  }
+
+  _endGame() {
+    const ok = confirm('Are you sure you want to end this game? This will count as a surrender.')
+    if (!ok) return
+    this.socket?.send({ type: 'end_game' })
   }
 
   _goToMenu() {

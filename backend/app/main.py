@@ -468,6 +468,54 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
             planet.build_queue.append({"type": "level_up", "ticks_remaining": ticks, "total_ticks": ticks})
             faction.credits -= cost
 
+    elif msg_type == "end_game":
+        # Player voluntarily ends their session (forfeit / surrender)
+        faction_map_local = {f.id: f for f in state.factions}
+        faction = faction_map_local.get(actor_faction_id)
+        if not faction or faction.eliminated:
+            return
+
+        human_factions = [f for f in state.factions if f.archetype == "player"]
+        pvp_mode = len(human_factions) > 1
+
+        # Mark the player as eliminated
+        faction.eliminated = True
+        state.tick_events.append({
+            "type": "faction_eliminated",
+            "faction_id": actor_faction_id,
+        })
+
+        if pvp_mode:
+            # PvP: check if only one human remains → they win
+            alive_humans = [f for f in human_factions if not f.eliminated]
+            if len(alive_humans) <= 1:
+                state.status = "won"
+                winner_id = alive_humans[0].id if alive_humans else None
+                state.tick_events.append({
+                    "type": "game_over",
+                    "result": "win",
+                    "winner_faction_id": winner_id,
+                    "mode": "pvp",
+                })
+            else:
+                # Notify the surrendering player directly
+                state.tick_events.append({
+                    "type": "game_over",
+                    "result": "loss",
+                    "winner_faction_id": None,
+                    "mode": "pvp",
+                    "forfeiter": actor_faction_id,
+                })
+        else:
+            # Solo: immediate loss
+            state.status = "lost"
+            state.tick_events.append({
+                "type": "game_over",
+                "result": "loss",
+                "winner_faction_id": None,
+                "mode": "singleplayer",
+            })
+
 
 # ── Game loop ─────────────────────────────────────────────────────────────────
 
@@ -511,6 +559,20 @@ async def game_loop(game_id: str) -> None:
             if game_id not in game_finished_at:
                 game_finished_at[game_id] = tick_start
                 logger.info(f"Game {game_id} finished with status '{state.status}'")
+                # Broadcast one final delta so clients receive pending game_over events
+                if state.tick_events:
+                    final_delta = serialize_delta(state)
+                    final_payload = json.dumps({
+                        "type": "tick",
+                        "data": final_delta,
+                        "players_online": online_count,
+                    })
+                    for ws in list(connections.get(game_id, [])):
+                        try:
+                            await ws.send_text(final_payload)
+                        except Exception:
+                            pass
+                    state.tick_events = []
             finished_for = tick_start - game_finished_at[game_id]
             if finished_for >= GAME_FINISHED_LINGER_SECONDS and online_count == 0:
                 logger.info(f"Game {game_id} cleanup after finish + {finished_for:.0f}s linger")

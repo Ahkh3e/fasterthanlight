@@ -1557,6 +1557,14 @@ class GameApp {
     this.startGame()  // shows start screen
   }
 
+  endGame() {
+    if (!this.socket || !this.gameState) return
+    const ok = confirm('Are you sure you want to end this game? This will count as a surrender.')
+    if (!ok) return
+    this.audio.playSfx('click')
+    this.socket.send({ type: 'end_game' })
+  }
+
   // Selection functions
   setEnergy(level) {
     if (this.selectedShips.size === 0) return
@@ -1925,6 +1933,7 @@ window.zoomOut = () => window.gameApp?.zoomOut()
 window.resetView = () => window.gameApp?.focusOnLastPlanet()
 window.toggleDashboard = () => window.gameApp?.toggleDashboard()
 window.goToMenu = () => window.gameApp?.goToMenu()
+window.endGame = () => window.gameApp?.endGame()
 window.setEnergy = (level) => window.gameApp?.setEnergy(level)
 window.stopShips = () => window.gameApp?.stopShips()
 window.hostLobby = () => window.gameApp?.hostLobby()
