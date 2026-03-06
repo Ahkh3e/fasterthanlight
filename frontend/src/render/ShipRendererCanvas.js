@@ -270,18 +270,18 @@ export default class ShipRendererCanvas {
   }
 
   _colour(ship) {
-    if (ship.owner === this.playerFactionId) return '#00ddff'   // player = cyan
     const faction = this.factionMap[ship.owner]
-    if (faction?.colour) return faction.colour                  // NPC = faction colour
+    if (faction?.colour) return faction.colour                  // use assigned faction colour
+    if (ship.owner === this.playerFactionId) return '#00ddff'   // fallback player = cyan
     return '#aaaaaa'                                            // neutral / unknown = grey
   }
 
   _size(type) {
-    return { fighter: 4, bomber: 4.6, cruiser: 5.2, carrier: 6.2, dreadnought: 7.2 }[type] ?? 4
+    return { fighter: 4, bomber: 4.6, cruiser: 5.2, carrier: 6.2, dreadnought: 7.2, mothership: 9 }[type] ?? 4
   }
 
   _typeScale(type) {
-    return { fighter: 1.0, bomber: 1.08, cruiser: 1.16, carrier: 1.26, dreadnought: 1.36 }[type] ?? 1.0
+    return { fighter: 1.0, bomber: 1.08, cruiser: 1.16, carrier: 1.26, dreadnought: 1.36, mothership: 1.5 }[type] ?? 1.0
   }
 
   _spriteDef(type) {
@@ -371,6 +371,27 @@ export default class ShipRendererCanvas {
           '011130000000311',
           '001166666666110',
           '000077777777000',
+        ],
+      },
+      mothership: {
+        pixel: 1,
+        rows: [
+          '00000000220000000',
+          '00000002442000000',
+          '00000002112000000',
+          '00000011111100000',
+          '00001111111111000',
+          '00011111111111100',
+          '01111111111111110',
+          '11111111111111111',
+          '01111133333111110',
+          '11111130003111111',
+          '11113300000331111',
+          '01113000000031110',
+          '11130006600003111',
+          '01130006600003110',
+          '00116666666661100',
+          '00007777777770000',
         ],
       },
     }

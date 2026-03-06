@@ -19,7 +19,7 @@ from game.physics import physics_tick
 from game.simulation import tick as simulation_tick
 from game.combat import combat_tick
 from game.ai import ai_tick
-from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, SHIP_TIER_REQ, PLAYER_START_CREDITS
+from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, SHIP_TIER_REQ, PLAYER_START_CREDITS, PVP_PLAYER_COLOURS
 
 logger = logging.getLogger("ftl")
 
@@ -216,7 +216,11 @@ async def start_lobby(lobby_id: str, req: LobbyStartRequest):
     if lobby.status != "waiting":
         raise HTTPException(status_code=409, detail="Lobby already started")
 
-    game_id, state = _create_game(lobby.seed, lobby.planet_count)
+    # Scale planet count by number of players so the map grows with lobby size
+    num_players = len(lobby.members)
+    scaled_planet_count = 15 * num_players
+
+    game_id, state = _create_game(lobby.seed, scaled_planet_count)
     lobby.status = "started"
     lobby.game_id = game_id
 
@@ -226,12 +230,14 @@ async def start_lobby(lobby_id: str, req: LobbyStartRequest):
         raise HTTPException(status_code=409, detail="Not enough factions for lobby size")
 
     assigned_faction_ids: set[str] = set()
-    for member, faction in zip(sorted_members, factions_by_start_order):
+    for idx, (member, faction) in enumerate(zip(sorted_members, factions_by_start_order)):
         assigned_faction_ids.add(faction.id)
         faction.archetype = "player"
         faction.name = member.name
         faction.ai_timer = 0
         faction.credits = PLAYER_START_CREDITS
+        # Assign unique colour per PvP player
+        faction.colour = PVP_PLAYER_COLOURS[idx % len(PVP_PLAYER_COLOURS)]
 
     for faction in state.factions:
         if faction.id not in assigned_faction_ids:

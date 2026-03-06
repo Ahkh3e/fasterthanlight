@@ -12,6 +12,7 @@ const SHIP_SIZE = {
   bomber:      { w: 8,  h: 7  },
   carrier:     { w: 10, h: 9  },
   dreadnought: { w: 10, h: 14 },
+  mothership:  { w: 14, h: 16 },
 }
 
 const ORBIT_SPEED_PER_MS = 0.015 * 20 / 1000  // 0.015 rad/tick × 20 ticks/s → rad/ms
@@ -152,13 +153,17 @@ export default class ShipRenderer {
       const isNeutral = ship.owner === 'neutral'
       let colour
 
-      if (isPlayer) {
-        colour = 0x00ffff
-      } else if (isNeutral) {
+      if (isNeutral) {
         colour = 0x3a5060
       } else {
-        const hex = factionMap[ship.owner]?.colour ?? '#888888'
-        colour = Phaser.Display.Color.HexStringToColor(hex).color
+        const fHex = factionMap[ship.owner]?.colour
+        if (fHex) {
+          colour = Phaser.Display.Color.HexStringToColor(fHex).color
+        } else if (isPlayer) {
+          colour = 0x00ffff
+        } else {
+          colour = Phaser.Display.Color.HexStringToColor('#888888').color
+        }
       }
 
       const alpha = isPlayer ? 1.0 : (isNeutral ? 0.45 : 0.7)

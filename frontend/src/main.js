@@ -56,7 +56,6 @@ class GameApp {
     
     // Input state (for InputHandlerCanvas)
     this.keys = {}
-    this.panInterval = null
     this.zoomInterval = null
     this.currentZoomDirection = null
     
@@ -72,6 +71,9 @@ class GameApp {
     this.exploredLanePath   = null
     this.unexploredLanePath = null
     this.laneDirty          = true
+
+    // Starfield background (offscreen, generated once)
+    this._starCanvas = null
 
     // Multi-selection box state
     this.isDrawingBox = false
@@ -116,6 +118,69 @@ class GameApp {
     
     // Initial transform
     this.applyTransform()
+
+    // Generate starfield background
+    this._generateStarfield()
+  }
+
+  _generateStarfield() {
+    const SW = 1024, SH = 1024
+    const c = document.createElement('canvas')
+    c.width = SW; c.height = SH
+    const g = c.getContext('2d')
+    g.fillStyle = '#0b0d12'
+    g.fillRect(0, 0, SW, SH)
+
+    // Seeded PRNG (simple LCG)
+    let s = 42
+    const rand = () => { s = (s * 1664525 + 1013904223) & 0x7fffffff; return s / 0x7fffffff }
+
+    // Layer 1: faint tiny stars (many)
+    for (let i = 0; i < 600; i++) {
+      const x = rand() * SW, y = rand() * SH
+      const brightness = 40 + rand() * 50 | 0
+      g.fillStyle = `rgb(${brightness},${brightness},${brightness + 15 | 0})`
+      g.fillRect(x, y, 1, 1)
+    }
+
+    // Layer 2: medium stars
+    for (let i = 0; i < 150; i++) {
+      const x = rand() * SW, y = rand() * SH
+      const brightness = 80 + rand() * 80 | 0
+      const r = brightness, gr = brightness + (rand() * 10 | 0), b = brightness + (rand() * 30 | 0)
+      g.fillStyle = `rgb(${r},${gr},${b})`
+      const sz = 1 + (rand() > 0.7 ? 1 : 0)
+      g.fillRect(x, y, sz, sz)
+    }
+
+    // Layer 3: bright stars (few, with glow)
+    for (let i = 0; i < 30; i++) {
+      const x = rand() * SW, y = rand() * SH
+      const brightness = 180 + rand() * 75 | 0
+      // Subtle colour hue variation
+      const hue = rand()
+      let r = brightness, gr = brightness, b = brightness
+      if (hue < 0.15) { r = Math.min(255, brightness + 30); gr = brightness - 20; b = brightness - 20 }       // warm
+      else if (hue < 0.3) { r = brightness - 20; gr = brightness - 10; b = Math.min(255, brightness + 40) }   // cool
+      // Glow
+      const grd = g.createRadialGradient(x, y, 0, x, y, 3)
+      grd.addColorStop(0, `rgba(${r},${gr},${b},0.9)`)
+      grd.addColorStop(1, `rgba(${r},${gr},${b},0)`)
+      g.fillStyle = grd
+      g.fillRect(x - 3, y - 3, 6, 6)
+      // Core
+      g.fillStyle = `rgb(${r},${gr},${b})`
+      g.fillRect(x, y, 2, 2)
+    }
+
+    this._starCanvas = c
+
+    // Apply as CSS tiled background — zero per-frame cost (GPU compositor)
+    const dataUrl = c.toDataURL('image/png')
+    const container = document.getElementById('game-container')
+    if (container) {
+      container.style.background = `#0b0d12 url(${dataUrl}) repeat`
+    }
   }
 
   resizeCanvas() {
@@ -227,8 +292,7 @@ class GameApp {
     }, { passive: false })
 
     // Keyboard controls
-    const keys = {}
-    let panInterval = null
+    const keys = this.keys
     
     // Enhanced zoom controls with C/V (screen center zoom with constant speed)
     let zoomInterval = null
@@ -284,28 +348,21 @@ class GameApp {
         this.focusOnLastPlanet()
       }
 
+      // Escape — close dashboard
+      if (e.key === 'Escape') {
+        const dash = document.getElementById('dashboard')
+        if (dash && dash.style.display !== 'none') {
+          this.closeDashboard()
+        }
+      }
+
       // F — move selected ships to cursor position
       if (key === 'f') {
         this.handleMoveCommand({ clientX: this.currentMouseX ?? 0, clientY: this.currentMouseY ?? 0 })
       }
       
-      // WASD panning
+      // WASD panning — just track key state; movement applied in render loop
       keys[key] = true
-      
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        if (!panInterval) {
-          panInterval = setInterval(() => {
-            let moved = false
-            
-            if (keys['w']) { this.panY += 10; moved = true }  // W moves up
-            if (keys['s']) { this.panY -= 10; moved = true }  // S moves down
-            if (keys['a']) { this.panX += 10; moved = true }  // A moves left
-            if (keys['d']) { this.panX -= 10; moved = true }  // D moves right
-            
-            if (moved) this.applyTransform()
-          }, 16) // ~60fps smooth panning
-        }
-      }
     })
     
     window.addEventListener('keyup', (e) => {
@@ -318,14 +375,6 @@ class GameApp {
       }
       
       keys[key] = false
-      
-      if (['w', 'a', 's', 'd'].includes(key)) {
-        const anyWASDPressed = ['w', 'a', 's', 'd'].some(k => keys[k])
-        if (!anyWASDPressed && panInterval) {
-          clearInterval(panInterval)
-          panInterval = null
-        }
-      }
     })
   }
 
@@ -364,18 +413,28 @@ class GameApp {
   }
 
   updateVolumeUI() {
+    const sfxPct = Math.round(this.audio.getSfxVolume() * 100)
+    const musicPct = Math.round(this.audio.getMusicVolume() * 100)
+
+    // In-game HUD sliders
     const sfxSlider = document.getElementById('sfx-volume')
     const musicSlider = document.getElementById('music-volume')
     const sfxValue = document.getElementById('sfx-volume-value')
     const musicValue = document.getElementById('music-volume-value')
-
-    const sfxPct = Math.round(this.audio.getSfxVolume() * 100)
-    const musicPct = Math.round(this.audio.getMusicVolume() * 100)
-
     if (sfxSlider) sfxSlider.value = String(sfxPct)
     if (musicSlider) musicSlider.value = String(musicPct)
     if (sfxValue) sfxValue.textContent = `${sfxPct}%`
     if (musicValue) musicValue.textContent = `${musicPct}%`
+
+    // Menu sliders (keep in sync)
+    const menuSfx = document.getElementById('menu-sfx-volume')
+    const menuMusic = document.getElementById('menu-music-volume')
+    const menuSfxVal = document.getElementById('menu-sfx-value')
+    const menuMusicVal = document.getElementById('menu-music-value')
+    if (menuSfx) menuSfx.value = String(sfxPct)
+    if (menuMusic) menuMusic.value = String(musicPct)
+    if (menuSfxVal) menuSfxVal.textContent = `${sfxPct}%`
+    if (menuMusicVal) menuMusicVal.textContent = `${musicPct}%`
   }
 
   toggleSfxMute() {
@@ -496,6 +555,10 @@ class GameApp {
         set('hud-tick', this.gameState.tick)
       }
     }
+
+    // Refresh tier progress if dropdown is visible
+    const tierDD = document.getElementById('tier-dropdown')
+    if (tierDD && tierDD.style.display !== 'none') window._updateTierProgress?.()
     
     // Update selection info
     if (this.selectedShips.size > 0) {
@@ -683,6 +746,7 @@ class GameApp {
       { name: 'bomber',      label: 'Bomber',       credits: 120, tier: 2, desc: 'HP:120 DMG:45 SPD:18 · 9s' },
       { name: 'carrier',     label: 'Carrier',      credits: 400, tier: 3, desc: 'HP:300 DMG:10 SPD:14 · 25s' },
       { name: 'dreadnought', label: 'Dreadnought',  credits: 800, tier: 3, desc: 'HP:600 DMG:80 SPD:10 · 40s' },
+      { name: 'mothership',  label: 'Mothership',   credits: 2500, tier: 3, desc: 'HP:1000 spawns fighters · 75s' },
     ]
 
     const makeBtn = (label, cost, desc, canBuild, onClick, hint = '') => {
@@ -791,8 +855,26 @@ class GameApp {
     // Show start screen; may auto-resume a saved lobby/game session
     const ss = document.getElementById('start-screen')
     if (ss) ss.style.display = 'flex'
+    this._showMenuStars(true)
     this.audio.playMusic('menu')
     this.tryResumeSession()
+  }
+
+  _showMenuStars(visible) {
+    const mc = document.getElementById('menu-stars')
+    if (!mc) return
+    if (visible) {
+      mc.style.display = 'block'
+      this._renderMenuStars(mc)
+    } else {
+      mc.style.display = 'none'
+    }
+  }
+
+  _renderMenuStars(canvas) {
+    if (!this._starCanvas) return
+    // Use CSS background on the menu-stars canvas instead of drawImage tiling
+    canvas.style.background = `#0b0d12 url(${this._starCanvas.toDataURL('image/png')}) repeat`
   }
 
   persistSession() {
@@ -842,6 +924,7 @@ class GameApp {
     this.audio.playSfx('click')
     document.getElementById('start-screen')?.style.setProperty('display', 'none')
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
+    this._showMenuStars(false)
     this.clearLobbyState()
     this.startNewGame()
   }
@@ -1051,6 +1134,7 @@ class GameApp {
       // Hide start screen once game is live
       const ss = document.getElementById('start-screen')
       if (ss) ss.style.display = 'none'
+      this._showMenuStars(false)
 
       // Update HUD with game info
       const set = (id, val) => { const e = document.getElementById(id); if (e) e.textContent = val }
@@ -1589,10 +1673,14 @@ class GameApp {
     let fpsLast = performance.now()
     let fpsDisplay = document.getElementById('fps-display')
 
+    let lastRenderTime = performance.now()
+
     const render = () => {
       // FPS counter
       fpsFrames++
       const now2 = performance.now()
+      const dt = Math.min(now2 - lastRenderTime, 50)  // cap at 50ms to avoid jumps
+      lastRenderTime = now2
       if (now2 - fpsLast >= 1000) {
         const fps = Math.round(fpsFrames * 1000 / (now2 - fpsLast))
         if (fpsDisplay) fpsDisplay.textContent = fps
@@ -1600,8 +1688,19 @@ class GameApp {
         fpsLast = now2
       }
 
+      // WASD panning — driven by rAF for smooth, jank-free movement
+      const panSpeed = 600 // pixels per second at zoom 1
+      const panDelta = panSpeed * (dt / 1000)
+      const k = this.keys || {}
+      if (k['w'] || k['a'] || k['s'] || k['d']) {
+        if (k['w']) this.panY += panDelta
+        if (k['s']) this.panY -= panDelta
+        if (k['a']) this.panX += panDelta
+        if (k['d']) this.panX -= panDelta
+      }
+
       if (this.gameState) {
-        // Clear canvas with transparent background
+        // Clear canvas (CSS background shows through)
         this.ctx.clearRect(0, 0, this.width, this.height)
         
         // Apply transform to context for rendering
@@ -1934,6 +2033,53 @@ window.resetView = () => window.gameApp?.focusOnLastPlanet()
 window.toggleDashboard = () => window.gameApp?.toggleDashboard()
 window.goToMenu = () => window.gameApp?.goToMenu()
 window.endGame = () => window.gameApp?.endGame()
+window.toggleTierInfo = () => {
+  const dd = document.getElementById('tier-dropdown')
+  if (dd) {
+    const opening = dd.style.display === 'none'
+    dd.style.display = opening ? 'block' : 'none'
+    if (opening) window._updateTierProgress?.()
+  }
+}
+window._updateTierProgress = () => {
+  const el = document.getElementById('tier-progress')
+  const gs = window.gameApp?.gameState
+  if (!el || !gs) { if (el) el.innerHTML = '<span style="color:#4a7080;font-size:10px;">No game data</span>'; return }
+  const pid = gs.player_faction_id
+  const faction = gs.factions?.find(f => f.id === pid)
+  if (!faction) return
+  const tier = faction.tech_tier || 1
+  const rp = Math.floor(faction.research_points || 0)
+  // Count planets at each level
+  let owned = 0, lv2 = 0, lv3 = 0
+  for (const p of gs.planets || []) {
+    if (p.owner === pid) {
+      owned++
+      if ((p.level || 1) >= 2) lv2++
+      if ((p.level || 1) >= 3) lv3++
+    }
+  }
+  const bar = (val, max, color) => {
+    const pct = Math.min(100, Math.round(val / max * 100))
+    return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">`
+      + `<div style="flex:1;height:6px;background:#0d1820;border-radius:3px;">`
+      + `<div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div>`
+      + `<span style="min-width:40px;text-align:right;font-size:10px;color:#7ae7ff;">${val}/${max}</span></div>`
+  }
+  let html = `<div style="color:#7ae7ff;font-size:12px;margin-bottom:6px;">Current: <span style="color:#fbbf24;font-weight:700;">Tier ${tier}</span> &nbsp;·&nbsp; RP: <span style="color:#a78bfa;">${rp}</span> &nbsp;·&nbsp; Planets: <span style="color:#00e8cc;">${owned}</span></div>`
+  if (tier < 2) {
+    html += `<div style="color:#e2e8f0;font-size:11px;font-weight:600;margin:6px 0 2px;">→ Tier 2</div>`
+    html += `<span style="color:#a5d8ff;font-size:10px;">RP</span>` + bar(rp, 500, '#a78bfa')
+    html += `<span style="color:#a5d8ff;font-size:10px;">Lv2+ Planets</span>` + bar(lv2, 5, '#2ecc71')
+  } else if (tier < 3) {
+    html += `<div style="color:#e2e8f0;font-size:11px;font-weight:600;margin:6px 0 2px;">→ Tier 3</div>`
+    html += `<span style="color:#a5d8ff;font-size:10px;">RP</span>` + bar(rp, 2000, '#a78bfa')
+    html += `<span style="color:#a5d8ff;font-size:10px;">Lv3+ Planets</span>` + bar(lv3, 10, '#2ecc71')
+  } else {
+    html += `<div style="color:#4aaa66;font-size:11px;margin-top:4px;">✓ Max tier reached</div>`
+  }
+  el.innerHTML = html
+}
 window.setEnergy = (level) => window.gameApp?.setEnergy(level)
 window.stopShips = () => window.gameApp?.stopShips()
 window.hostLobby = () => window.gameApp?.hostLobby()

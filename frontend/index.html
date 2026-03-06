@@ -88,7 +88,7 @@
             padding: 16px 18px;
             width: min(920px, 94vw);
             max-height: 82vh;
-            overflow: hidden;
+            overflow-y: auto;
             z-index: 2000;
             display: none;
             box-shadow:
@@ -639,7 +639,39 @@
             </div>
             <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button onclick="goToMenu()" id="btn-menu">MENU</button>
+                <button onclick="toggleTierInfo()" id="btn-tier-info" style="background:#1a2a3a;color:#fbbf24;border-color:#3a5060;">TIERS</button>
                 <button onclick="endGame()" id="btn-end-game" style="background:#2a1520;color:#ff6666;border-color:#5a2030;">END GAME</button>
+            </div>
+        </div>
+
+        <!-- Tier Requirements Dropdown -->
+        <div id="tier-dropdown" style="position:fixed;bottom:180px;left:20px;min-width:280px;max-height:calc(100vh - 220px);overflow-y:auto;background:rgba(10,18,28,0.96);border:1px solid #1a3a50;padding:14px 16px;z-index:1100;display:none;font-family:'Courier New',Consolas,monospace;border-radius:0;">
+            <div style="color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px;margin-bottom:10px;border-bottom:1px solid #1a3a50;padding-bottom:6px;">TIER PROGRESS</div>
+            <div id="tier-progress" style="margin-bottom:12px;border-bottom:1px solid #1a3a50;padding-bottom:10px;"></div>
+            <div style="color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px;margin-bottom:10px;border-bottom:1px solid #1a3a50;padding-bottom:6px;">TIER REQUIREMENTS</div>
+            <div style="color:#3a8880;font-size:10px;letter-spacing:1px;margin-bottom:8px;">Research Points needed</div>
+            <div style="color:#7ae7ff;font-size:11px;margin-bottom:12px;">
+                <span style="color:#fbbf24;">T1</span> Start &nbsp;·&nbsp;
+                <span style="color:#fbbf24;">T2</span> 500 RP + 5 planets Lv2 &nbsp;·&nbsp;
+                <span style="color:#fbbf24;">T3</span> 2000 RP + 10 planets Lv3
+            </div>
+            <div style="color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:1px;margin-bottom:4px;">Ships</div>
+            <div style="color:#a5d8ff;font-size:10px;line-height:1.8;margin-bottom:10px;">
+                <span style="color:#4aaa66;">T1</span> Fighter · 50 Cr<br>
+                <span style="color:#4aaa66;">T2</span> Cruiser · 150 Cr<br>
+                <span style="color:#4aaa66;">T2</span> Bomber · 120 Cr<br>
+                <span style="color:#4aaa66;">T3</span> Carrier · 400 Cr<br>
+                <span style="color:#4aaa66;">T3</span> Dreadnought · 800 Cr<br>
+                <span style="color:#4aaa66;">T3</span> Mothership · 2500 Cr
+            </div>
+            <div style="color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:1px;margin-bottom:4px;">Buildings</div>
+            <div style="color:#a5d8ff;font-size:10px;line-height:1.8;">
+                <span style="color:#4aaa66;">L1</span> Extractor · 100 Cr<br>
+                <span style="color:#4aaa66;">L1</span> Shipyard · 200 Cr<br>
+                <span style="color:#4aaa66;">L1</span> Research Lab · 150 Cr<br>
+                <span style="color:#4aaa66;">L1</span> Defense Platform · 250 Cr<br>
+                <span style="color:#4aaa66;">L2</span> Trade Hub · 350 Cr<br>
+                <span style="color:#4aaa66;">L3</span> Orbital Cannon · 450 Cr
             </div>
         </div>
 
@@ -737,8 +769,11 @@
         </div>
     </div>
 
+    <!-- Starfield background for menus -->
+    <canvas id="menu-stars" style="position:fixed;top:0;left:0;width:100%;height:100%;z-index:8999;pointer-events:none;"></canvas>
+
     <!-- Launch / Start Screen -->
-    <div id="start-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:#0b0d12;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;">
+    <div id="start-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:transparent;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;">
         <div class="start-layout">
             <div class="start-main">
                 <div class="start-title">FASTER THAN LIGHT</div>
@@ -753,6 +788,20 @@
                     <button id="lobby-start-btn" onclick="window.startLobbyMatch?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;display:none;">Start PvP Match</button>
                     <button onclick="window.leaveLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;background:#102030;color:#6ea7c5;">Leave Lobby</button>
                     <button onclick="window.gameApp?.openLoadMenu()" style="width:260px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;border-color:#1a3a50;cursor:not-allowed;opacity:0.5;" disabled>Load Game</button>
+                </div>
+
+                <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;align-items:center;width:260px;">
+                    <div style="color:#5a7f96;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;width:100%;text-align:center;">Audio</div>
+                    <div style="display:flex;align-items:center;gap:8px;width:100%;color:#7d95a6;font-size:11px;font-family:'Courier New',Consolas,monospace;">
+                        <span style="min-width:60px;">SFX</span>
+                        <input id="menu-sfx-volume" type="range" min="0" max="100" value="75" oninput="window.setSfxVolume?.(this.value)" style="flex:1;" />
+                        <span id="menu-sfx-value" style="min-width:32px;text-align:right;">75%</span>
+                    </div>
+                    <div style="display:flex;align-items:center;gap:8px;width:100%;color:#7d95a6;font-size:11px;font-family:'Courier New',Consolas,monospace;">
+                        <span style="min-width:60px;">MUSIC</span>
+                        <input id="menu-music-volume" type="range" min="0" max="100" value="45" oninput="window.setMusicVolume?.(this.value)" style="flex:1;" />
+                        <span id="menu-music-value" style="min-width:32px;text-align:right;">45%</span>
+                    </div>
                 </div>
 
                 <div class="start-help">

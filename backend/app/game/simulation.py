@@ -12,8 +12,9 @@ from game.config import (
     ORBIT_SPEED, BASE_INCOME_PER_PLANET, EXTRACTOR_INCOME_BONUS, POPULATION_INCOME_BONUS,
     LEVEL_INCOME_BONUS, TRADE_HUB_INCOME_BONUS,
     BASE_STORAGE_CAPACITY, EXTRACTOR_STORAGE_BONUS, SHIPYARD_STORAGE_BONUS, PLANET_STORAGE_BONUS,
-    RESEARCH_PER_LAB, TECH_THRESHOLDS, SHIP_STATS, AUTO_FLEET_INTERVAL,
+    RESEARCH_PER_LAB, TECH_THRESHOLDS, TECH_PLANET_REQ, SHIP_STATS, AUTO_FLEET_INTERVAL,
     BUILDING_COSTS, SHIP_COSTS, LEVEL_UP_TICKS, TECH_BONUSES,
+    MOTHERSHIP_SPAWN_INTERVAL,
 )
 from game.state import GameState, Planet, Ship, Faction
 from game.orbits import (
@@ -35,7 +36,8 @@ def tick(state: GameState, planet_map: dict, ship_map: dict, faction_map: dict) 
     _harvest_resources(state.factions, state.planets, faction_map)
     _process_build_queues(state, planet_map, faction_map)
     _auto_fleet(state, faction_map)
-    _advance_tech(state.factions)
+    _mothership_spawn(state, faction_map)
+    _advance_tech(state.factions, state.planets)
 
 
 # ── Orbits ─────────────────────────────────────────────────────────────────────
@@ -296,10 +298,95 @@ def _auto_fleet(state: GameState, faction_map: dict) -> None:
             _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
 
 
+# ── Mothership fighter spawning ─────────────────────────────────────────────
+
+def _mothership_spawn(state: GameState, faction_map: dict) -> None:
+    """Motherships periodically spawn a fighter near themselves."""
+    fighter_stats = SHIP_STATS.get("fighter")
+    if not fighter_stats:
+        return
+
+    new_ships: list[Ship] = []
+    for ship in state.ships:
+        if ship.type != "mothership" or ship.health <= 0:
+            continue
+        ship.spawn_timer += 1
+        if ship.spawn_timer < MOTHERSHIP_SPAWN_INTERVAL:
+            continue
+        ship.spawn_timer = 0
+
+        faction = faction_map.get(ship.owner)
+        tier   = faction.tech_tier if faction else 1
+        bonus  = TECH_BONUSES.get(tier, TECH_BONUSES[1])
+        hp     = round(float(fighter_stats["hp"]) * bonus["hp"], 1)
+
+        # Spawn fighter in a ring around the mothership
+        count = len(new_ships)
+        angle = (count * 2.399)  # golden angle for spacing
+        offset = 30.0
+        state.ship_id_counter += 1
+        new_ship = Ship(
+            id=f"s-{state.ship_id_counter:04d}",
+            type="fighter",
+            owner=ship.owner,
+            x=round(ship.x + math.cos(angle) * offset, 2),
+            y=round(ship.y + math.sin(angle) * offset, 2),
+            health=hp,
+            max_health=hp,
+            state=ship.state,
+            target_planet=ship.target_planet,
+            target_x=ship.target_x,
+            target_y=ship.target_y,
+            orbit_angle=angle,
+            orbit_radius=ship.orbit_radius,
+        )
+        new_ships.append(new_ship)
+        state.tick_events.append({
+            "type": "ship_spawned",
+            "ship": {
+                "id":            new_ship.id,
+                "type":          new_ship.type,
+                "owner":         new_ship.owner,
+                "x":             new_ship.x,
+                "y":             new_ship.y,
+                "vx":            0.0,
+                "vy":            0.0,
+                "health":        new_ship.health,
+                "max_health":    new_ship.max_health,
+                "state":         new_ship.state,
+                "target_planet": new_ship.target_planet,
+                "target_ship":   None,
+                "orbit_angle":   new_ship.orbit_angle,
+                "orbit_radius":  new_ship.orbit_radius,
+                "target_x":      new_ship.target_x,
+                "target_y":      new_ship.target_y,
+                "fuel":          new_ship.fuel,
+                "energy_level":  new_ship.energy_level,
+                "rogue":         False,
+            },
+        })
+
+    state.ships.extend(new_ships)
+
+
 # ── Tech tier advancement ──────────────────────────────────────────────────────
 
-def _advance_tech(factions: list[Faction]) -> None:
+def _advance_tech(factions: list[Faction], planets: list[Planet]) -> None:
+    # Count planets per faction at each level
+    level_counts: dict[str, dict[int, int]] = {}  # faction_id -> {min_level: count}
+    for p in planets:
+        if p.owner:
+            fc = level_counts.setdefault(p.owner, {})
+            for lv in range(1, p.level + 1):
+                fc[lv] = fc.get(lv, 0) + 1
     for faction in factions:
+        fc = level_counts.get(faction.id, {})
         for tier, threshold in sorted(TECH_THRESHOLDS.items()):
-            if faction.tech_tier < tier and faction.research_points >= threshold:
+            req = TECH_PLANET_REQ.get(tier)
+            if req is None:
+                planets_ok = True
+            else:
+                need_count, need_level = req
+                planets_ok = fc.get(need_level, 0) >= need_count
+            if faction.tech_tier < tier and faction.research_points >= threshold and planets_ok:
                 faction.tech_tier = tier

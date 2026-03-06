@@ -65,6 +65,7 @@ class Ship:
     energy_level: float = 1.0
     fire_timer: int = 0
     rogue: bool = False
+    spawn_timer: int = 0  # mothership: ticks until next fighter spawn
 
 
 @dataclass
@@ -161,4 +162,5 @@ def _ship_from_dict(d: dict) -> Ship:
         target_x=d.get("target_x"), target_y=d.get("target_y"),
         fuel=d.get("fuel", 1.0), energy_level=d.get("energy_level", 1.0),
         fire_timer=d.get("fire_timer", 0), rogue=d.get("rogue", False),
+        spawn_timer=d.get("spawn_timer", 0),
     )

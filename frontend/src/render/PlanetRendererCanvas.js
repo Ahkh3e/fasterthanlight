@@ -60,10 +60,10 @@ export default class PlanetRendererCanvas {
 
   drawOwnershipRing(x, y, radius, ownerId, explored, zoom = 1) {
     let colour = '#ffffff'
-    if (ownerId === this.playerFactionId) {
+    if (this.factionMap[ownerId]?.colour) {
+      colour = this.factionMap[ownerId].colour
+    } else if (ownerId === this.playerFactionId) {
       colour = '#00ffff'
-    } else if (this.factionMap[ownerId]) {
-      colour = this.factionMap[ownerId].colour || '#ffffff'
     }
 
     // Keep ring at least 1.5 screen pixels wide when zoomed out
@@ -100,9 +100,8 @@ export default class PlanetRendererCanvas {
 
     const x = planet.x
     const y = planet.y
-    const ownerColor = planet.owner === this.playerFactionId
-      ? '#00ffff'
-      : (this.factionMap[planet.owner]?.colour || '#8fd7ff')
+    const ownerColor = this.factionMap[planet.owner]?.colour
+      || (planet.owner === this.playerFactionId ? '#00ffff' : '#8fd7ff')
 
     if (level >= 2) {
       this.ctx.save()
@@ -162,9 +161,8 @@ export default class PlanetRendererCanvas {
     const buildings = planet.buildings || []
     if (!buildings.length) return
 
-    const ownerColor = planet.owner === this.playerFactionId
-      ? '#00ffff'
-      : (this.factionMap[planet.owner]?.colour || '#8fd7ff')
+    const ownerColor = this.factionMap[planet.owner]?.colour
+      || (planet.owner === this.playerFactionId ? '#00ffff' : '#8fd7ff')
 
     const now = performance.now() * 0.001
     const defs = []

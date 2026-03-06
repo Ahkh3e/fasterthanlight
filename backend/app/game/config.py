@@ -26,7 +26,10 @@ FACTION_PREFIX = [
 FACTION_NAME = [
     "Kral","Vorryn","Dhess","Orath","Selun","Mynx","Zurai","Brennox","Celth",
 ]
-FACTION_COLOURS = ["#e74c3c","#2ecc71","#f39c12","#9b59b6","#e67e22"]
+FACTION_COLOURS = ["#e74c3c","#2ecc71","#f39c12","#9b59b6","#e67e22","#1abc9c","#e84393","#00cec9","#fdcb6e","#6c5ce7"]
+
+# Distinct colours for PvP players (max 6 slots, all visually distinct)
+PVP_PLAYER_COLOURS = ["#00ffff","#e74c3c","#2ecc71","#f39c12","#e84393","#6c5ce7"]
 
 # ── Resources ─────────────────────────────────────────────────────────────────
 # New unified currency system: Credits
@@ -73,6 +76,7 @@ SHIP_COSTS = {
     "bomber":      120,
     "carrier":     400,
     "dreadnought": 800,
+    "mothership":  2500,
 }
 
 # Ship tier requirements
@@ -82,11 +86,13 @@ SHIP_TIER_REQ = {
     "bomber":      2,
     "carrier":     3,
     "dreadnought": 3,
+    "mothership":  3,
 }
 
 # Research and tech
-RESEARCH_PER_LAB = 1.0
+RESEARCH_PER_LAB = 0.05
 TECH_THRESHOLDS = {2: 500, 3: 2000}
+TECH_PLANET_REQ = {2: (5, 2), 3: (10, 3)}  # (planet_count, min_planet_level) to advance
 
 # Starting resources
 PLAYER_START_CREDITS = 500.0
@@ -116,21 +122,24 @@ ORBIT_RING_STEP         = 18      # spacing between orbit rings
 
 # ── Ship stats: hp, damage, fire_rate (ticks), speed, sensor_range, fuel_cost ─
 SHIP_STATS = {
-    "fighter":     dict(hp=50,  damage=8,  fire_rate=15, speed=36.0, sensor=300, fuel=0.003),
-    "cruiser":     dict(hp=150, damage=20, fire_rate=20, speed=26.4, sensor=350, fuel=0.004),
-    "bomber":      dict(hp=120, damage=45, fire_rate=35, speed=21.6, sensor=300, fuel=0.004),
-    "carrier":     dict(hp=300, damage=10, fire_rate=25, speed=16.8, sensor=400, fuel=0.006),
-    "dreadnought": dict(hp=600, damage=80, fire_rate=30, speed=12.0, sensor=380, fuel=0.008),
+    "fighter":     dict(hp=50,  damage=8,  fire_rate=15, speed=54.0, sensor=300, fuel=0.003),
+    "cruiser":     dict(hp=150, damage=20, fire_rate=20, speed=39.6, sensor=350, fuel=0.004),
+    "bomber":      dict(hp=120, damage=45, fire_rate=35, speed=32.4, sensor=300, fuel=0.004),
+    "carrier":     dict(hp=300, damage=10, fire_rate=25, speed=25.2, sensor=400, fuel=0.006),
+    "dreadnought": dict(hp=600, damage=80, fire_rate=30, speed=18.0, sensor=380, fuel=0.008),
+    "mothership":  dict(hp=1000, damage=5,  fire_rate=40, speed=9.6,  sensor=450, fuel=0.010),
 }
 SHIP_ATTACK_RANGE = {
     "fighter":150, "cruiser":250,
     "bomber":200, "carrier":100, "dreadnought":350,
+    "mothership":80,
 }
 
 # ── AI ────────────────────────────────────────────────────────────────────────
 AI_DECISION_INTERVAL  = 120  # ticks between AI decisions (6 s at 20 Hz)
 AUTO_FLEET_INTERVAL   = 800  # ticks between auto-fleet bursts per owned planet (40 s)
 MAX_SHIPS_PER_FACTION = 30   # hard cap per faction to keep N² combat loop fast
+MOTHERSHIP_SPAWN_INTERVAL = 400  # ticks between mothership fighter spawns (20 s)
 
 # Build times for manually-queued ships (ticks at 20 Hz)
 SHIP_BUILD_TICKS = {
@@ -139,6 +148,7 @@ SHIP_BUILD_TICKS = {
     "bomber":      180,   #  9 s
     "carrier":     500,   # 25 s
     "dreadnought": 800,   # 40 s
+    "mothership":  1500,  # 75 s
 }
 
 # ── Conquest ──────────────────────────────────────────────────────────────────
