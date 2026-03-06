@@ -153,7 +153,7 @@ SHIP_BUILD_TICKS = {
 
 # ── Fleet Upgrades (purchasable per-faction perks) ────────────────────────────
 FLEET_UPGRADES = {
-    "speed":  {"label": "Thruster Boost",  "max_level": 5, "cost_base": 200, "cost_scale": 2.0, "bonus_per_level": 0.08},
+    "speed":  {"label": "Thruster Boost",  "max_level": 5, "cost_base": 200, "cost_scale": 2.0, "bonus_per_level": 0.15},
     "health": {"label": "Hull Plating",    "max_level": 5, "cost_base": 250, "cost_scale": 2.0, "bonus_per_level": 0.10},
     "damage": {"label": "Weapon Systems",  "max_level": 5, "cost_base": 300, "cost_scale": 2.0, "bonus_per_level": 0.08},
 }

@@ -5,12 +5,21 @@ export default class SocketClient {
     this.onMessage = () => {}
     this.onOpen = () => {}
     this.onClose = () => {}
+    this.outbox = []
   }
 
   connect() {
     this.ws = new WebSocket(this.url)
 
-    this.ws.onopen = () => this.onOpen()
+    this.ws.onopen = () => {
+      if (this.outbox.length > 0) {
+        for (const payload of this.outbox) {
+          this.ws.send(payload)
+        }
+        this.outbox = []
+      }
+      this.onOpen()
+    }
     this.ws.onclose = () => this.onClose()
     this.ws.onerror = (err) => console.error('[Socket] error', err)
 
@@ -27,11 +36,15 @@ export default class SocketClient {
   send(data) {
     if (this.ws?.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(data))
+      return true
     }
+    this.outbox.push(JSON.stringify(data))
+    return false
   }
 
   close() {
     this.ws?.close()
     this.ws = null
+    this.outbox = []
   }
 }

@@ -2968,7 +2968,7 @@ window._updateTierProgress = () => {
   if (!fuEl) return
   const fu = faction.fleet_upgrades || { speed: 0, health: 0, damage: 0 }
   const UPGRADES = [
-    { key: 'speed',  label: 'Thruster Boost', icon: '⚡', desc: '+8% ship speed/lv', base: 200, scale: 2.0, max: 5 },
+    { key: 'speed',  label: 'Thruster Boost', icon: '⚡', desc: '+15% ship speed/lv', base: 200, scale: 2.0, max: 5 },
     { key: 'health', label: 'Hull Plating',   icon: '🛡', desc: '+10% ship HP/lv',   base: 250, scale: 2.0, max: 5 },
     { key: 'damage', label: 'Weapon Systems', icon: '🗡', desc: '+8% ship damage/lv', base: 300, scale: 2.0, max: 5 },
   ]
@@ -2986,14 +2986,22 @@ window._updateTierProgress = () => {
         <div style="font-size:9px;color:#4a7080;">${u.desc}</div>
         <div style="margin-top:2px;">${dots}</div>
       </div>
-      ${maxed ? '' : `<button onmousedown="event.stopPropagation();window._buyFleetUpgrade('${u.key}')" style="padding:4px 8px;font-size:10px;min-width:60px;opacity:${canBuy ? 1 : 0.4};pointer-events:${canBuy ? 'auto' : 'none'};" ${canBuy ? '' : 'disabled'}>💰${cost}</button>`}
+      ${maxed ? '' : `<button data-fleet-upgrade="${u.key}" style="padding:4px 8px;font-size:10px;min-width:60px;opacity:${canBuy ? 1 : 0.4};pointer-events:${canBuy ? 'auto' : 'none'};" ${canBuy ? '' : 'disabled'}>💰${cost}</button>`}
     </div>`
   }).join('')
 }
 window.setEnergy = (level) => window.gameApp?.setEnergy(level)
 window.stopShips = () => window.gameApp?.stopShips()
 window._buyFleetUpgrade = (type) => {
-  window.gameApp?.socket?.send({ type: 'fleet_upgrade', upgrade_type: type })
+  if (!type) return
+  const app = window.gameApp
+  if (!app) return
+  app._lastFleetUpgradeSendAt = app._lastFleetUpgradeSendAt || {}
+  const now = performance.now()
+  const lastAt = app._lastFleetUpgradeSendAt[type] || 0
+  if (now - lastAt < 120) return
+  app._lastFleetUpgradeSendAt[type] = now
+  app.socket?.send({ type: 'fleet_upgrade', upgrade_type: type })
 }
 window._mothershipUpgrade = (shipId, upgradeType) => {
   window.gameApp?.socket?.send({ type: 'mothership_upgrade', ship_id: shipId, upgrade_type: upgradeType })
@@ -3023,6 +3031,19 @@ document.addEventListener('DOMContentLoaded', () => {
   console.log('All canvas elements:', document.querySelectorAll('canvas'))
   console.log('Body exists:', document.body)
   console.log('Game container exists:', document.getElementById('game-container'))
+
+  const fleetUpgradesEl = document.getElementById('fleet-upgrades')
+  if (fleetUpgradesEl) {
+    fleetUpgradesEl.addEventListener('pointerdown', (event) => {
+      const btn = event.target?.closest?.('button[data-fleet-upgrade]')
+      if (!btn) return
+      event.preventDefault()
+      event.stopPropagation()
+      if (btn.disabled) return
+      const type = btn.getAttribute('data-fleet-upgrade')
+      window._buyFleetUpgrade?.(type)
+    })
+  }
   
   window.gameApp = new GameApp()
 })
