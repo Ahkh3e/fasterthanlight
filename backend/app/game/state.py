@@ -74,12 +74,16 @@ class Ship:
     spawn_timer: int = 0  # mothership: ticks until next fighter spawn
     speed_mult: float = 1.0   # fleet upgrade multiplier (applied at spawn)
     damage_mult: float = 1.0  # fleet upgrade multiplier (applied at spawn)
+    mothership_level: int = 1
+    mothership_mode: str = "orbit"  # mothership follower behavior: orbit|formation
+    mothership_upgrades: dict = field(default_factory=lambda: {"launch_bays": 0, "assembly": 0})
 
 
 @dataclass
 class GameState:
     id: str
     seed: int
+    dev_mode: bool = False
     tick: int = 0
     running: bool = True
     status: str = "running"     # "running" | "won" | "lost"
@@ -109,6 +113,7 @@ class GameState:
         return cls(
             id=data["id"],
             seed=data["seed"],
+            dev_mode=data.get("dev_mode", False),
             tick=data.get("tick", 0),
             running=data.get("running", True),
             status=data.get("status", "running"),
@@ -178,4 +183,7 @@ def _ship_from_dict(d: dict) -> Ship:
         spawn_timer=d.get("spawn_timer", 0),
         speed_mult=d.get("speed_mult", 1.0),
         damage_mult=d.get("damage_mult", 1.0),
+        mothership_level=d.get("mothership_level", 1),
+        mothership_mode=d.get("mothership_mode", "orbit"),
+        mothership_upgrades=d.get("mothership_upgrades", {"launch_bays": 0, "assembly": 0}),
     )

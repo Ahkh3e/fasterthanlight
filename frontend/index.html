@@ -207,6 +207,32 @@
             gap: 8px;
         }
 
+        #mothership-followers-list {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+            gap: 6px;
+        }
+
+        .mothership-follower-chip {
+            border: 1px solid #22445d;
+            background: rgba(10, 24, 38, 0.85);
+            color: #9fc5d8;
+            font-size: 10px;
+            padding: 5px 6px;
+            min-height: 20px;
+            display: flex;
+            justify-content: space-between;
+            gap: 6px;
+        }
+
+        #mothership-upgrades,
+        #mothership-fleet-buy {
+            position: relative;
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+            gap: 8px;
+        }
+
         .dashboard-overlay button {
             border-radius: 0;
             border: 1px solid #2b5a78;
@@ -1214,6 +1240,48 @@
         <div style="display:flex; gap:8px; flex-wrap:wrap;" id="dashboard-construction"></div>
     </div>
 
+    <div class="dashboard-overlay" id="mothership-dashboard">
+        <div class="dash-corner tl"></div><div class="dash-corner tr"></div><div class="dash-corner bl"></div><div class="dash-corner br"></div>
+
+        <div class="dash-head">
+            <div>
+                <div class="dash-title" id="mothership-dashboard-title">Mothership Dashboard</div>
+                <div class="dash-owner" id="mothership-dashboard-owner">Your Fleet Command</div>
+            </div>
+            <div class="dashboard-close" title="Close">×</div>
+        </div>
+
+        <div class="dash-subhead">
+            <span>Flagship // Fleet Link</span>
+            <span>Command Relay Online</span>
+        </div>
+
+        <div class="dash-stats">
+            <div class="dash-stat"><span>Mothership Lvl</span><span class="v" id="mothership-level">1</span></div>
+            <div class="dash-stat"><span>Follower Mode</span><span class="v" id="mothership-mode">Orbit</span></div>
+            <div class="dash-stat"><span>Followers</span><span class="v" id="mothership-followers-count">0</span></div>
+            <div class="dash-stat"><span>Available Ships</span><span class="v" id="mothership-available-count">0</span></div>
+            <div class="dash-stat"><span>Fighter Spawn/Burst</span><span class="v" id="mothership-spawn-rate">1</span></div>
+            <div class="dash-stat"><span>Shipyard Bonus</span><span class="v" id="mothership-shipyard-bonus">+0</span></div>
+        </div>
+
+        <div class="dash-section-title">Followers</div>
+        <div class="dash-section-body">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <button id="mothership-toggle-mode">Toggle Mode</button>
+                <button id="mothership-assign-selected">Assign Selected</button>
+                <button id="mothership-unassign-selected">Unassign Selected</button>
+            </div>
+            <div id="mothership-followers-list"></div>
+        </div>
+
+        <div class="dash-section-title">Upgrades</div>
+        <div id="mothership-upgrades"></div>
+
+        <div class="dash-section-title">Fleet Bay</div>
+        <div id="mothership-fleet-buy"></div>
+    </div>
+
 
     <!-- Top Left Faction Status -->
     <div class="hud-panel" id="faction-status" style="position:fixed; top:20px; left:20px; min-width:300px; pointer-events:auto; z-index:1000; display:none; padding:18px 20px 16px;">
@@ -1248,6 +1316,7 @@
 
                 <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
                     <button onclick="window.gameApp?.launchNewGame()" style="width:260px;padding:14px 0;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">Play Solo</button>
+                    <button id="start-dev-btn" onclick="window.gameApp?.launchDevSandbox()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;background:#2d184a;color:#d7b0ff;display:none;">Dev Solo (Sandbox)</button>
                     <button onclick="window.openTutorial?.()" style="width:260px;padding:12px 0;font-size:13px;letter-spacing:2px;background:#1d3750;color:#9fe7ff;">How To Play</button>
                     <input id="lobby-player-name" class="retro-input" placeholder="Your Name" maxlength="20" style="width:260px;" />
                     <button onclick="window.hostLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;">Host PvP Lobby (6)</button>

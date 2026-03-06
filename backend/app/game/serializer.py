@@ -6,6 +6,7 @@ def serialize_state(state: GameState) -> dict:
     return {
         "id": state.id,
         "seed": state.seed,
+        "dev_mode": state.dev_mode,
         "tick": state.tick,
         "running": state.running,
         "status": state.status,
@@ -31,6 +32,7 @@ def serialize_delta(state: GameState) -> dict:
     return {
         "tick":     state.tick,
         "status":   state.status,
+        "dev_mode": state.dev_mode,
         "ships":    ship_deltas,
         "factions": [_faction_resources(f) for f in state.factions],
         "planets":  [_planet_delta(p) for p in state.planets],
@@ -82,6 +84,9 @@ def _ship(s: Ship) -> dict:
         "fuel":         s.fuel,
         "energy_level": s.energy_level,
         "rogue":        s.rogue,
+        "mothership_level": getattr(s, "mothership_level", 1),
+        "mothership_mode": getattr(s, "mothership_mode", "orbit"),
+        "mothership_upgrades": dict(getattr(s, "mothership_upgrades", {})),
     }
 
 
@@ -116,13 +121,19 @@ def _ship_delta(s: Ship) -> dict:
     orbit_radius so the client tracks ring reassignments.
     """
     if s.state == "orbiting":
-        return {
+        d = {
             "id":            s.id,
             "state":         "orbiting",
             "health":        round(s.health, 1),
             "target_planet": s.target_planet,
+            "target_ship":   s.target_ship,
             "orbit_radius":  round(s.orbit_radius, 2),
         }
+        if s.type == "mothership":
+            d["mothership_level"] = getattr(s, "mothership_level", 1)
+            d["mothership_mode"] = getattr(s, "mothership_mode", "orbit")
+            d["mothership_upgrades"] = dict(getattr(s, "mothership_upgrades", {}))
+        return d
     d = {
         "id":            s.id,
         "x":             s.x,
@@ -130,12 +141,17 @@ def _ship_delta(s: Ship) -> dict:
         "state":         s.state,
         "health":        round(s.health, 1),
         "target_planet": s.target_planet,
+        "target_ship":   s.target_ship,
     }
     if s.state in ("moving", "retreating"):
         d["vx"]       = round(s.vx, 2)
         d["vy"]       = round(s.vy, 2)
         d["target_x"] = s.target_x
         d["target_y"] = s.target_y
+    if s.type == "mothership":
+        d["mothership_level"] = getattr(s, "mothership_level", 1)
+        d["mothership_mode"] = getattr(s, "mothership_mode", "orbit")
+        d["mothership_upgrades"] = dict(getattr(s, "mothership_upgrades", {}))
     return d
 
 

@@ -27,5 +27,8 @@ export const ZOOM_MIN = 0.07
 export const ZOOM_MAX = 2.5
 export const ZOOM_STEP = 0.001
 
+// Dev menu toggle (set true to show Dev Solo sandbox button on home screen)
+export const DEV_MENU_ENABLED = true
+
 // Ship types
 export const SHIP_TYPES = ['fighter', 'cruiser', 'bomber', 'carrier', 'dreadnought']

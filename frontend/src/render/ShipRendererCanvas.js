@@ -142,9 +142,14 @@ export default class ShipRendererCanvas {
   _computeOrbitLayout(now) {
     const positions = {}
     const byPlanet = {}
+    const byAnchor = {}
+    const shipMap = {}
+    for (const s of this.ships) shipMap[s.id] = s
     for (const s of this.ships) {
       if (s.state === 'orbiting' && s.target_planet) {
         ;(byPlanet[s.target_planet] ??= []).push(s)
+      } else if (s.state === 'orbiting' && s.target_ship) {
+        ;(byAnchor[s.target_ship] ??= []).push(s)
       }
     }
 
@@ -183,6 +188,41 @@ export default class ShipRendererCanvas {
             y: planet.y + Math.sin(angle) * radius,
             dx: -Math.sin(angle),  // tangent for heading
             dy:  Math.cos(angle),
+          }
+        }
+      }
+    }
+
+    for (const [anchorId, group] of Object.entries(byAnchor)) {
+      const anchor = shipMap[anchorId]
+      if (!anchor) continue
+
+      group.sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+      const ringMap = {}
+      for (const s of group) {
+        const r = s.orbit_radius || 36
+        ;(ringMap[r] ??= []).push(s)
+      }
+
+      const sortedRadii = Object.keys(ringMap).map(Number).sort((a, b) => a - b)
+      const basePhase = this._hashPlanetPhase(anchorId)
+      const spin = now * ORBIT_SPEED_PER_MS * 1.2
+
+      for (let ri = 0; ri < sortedRadii.length; ri++) {
+        const radius = sortedRadii[ri]
+        const ring = ringMap[radius]
+        const count = ring.length
+        if (count <= 0) continue
+        const step = (2 * Math.PI) / count
+        const start = basePhase + spin + ri * 0.33
+
+        for (let i = 0; i < count; i++) {
+          const angle = start + i * step
+          positions[ring[i].id] = {
+            x: anchor.x + Math.cos(angle) * radius,
+            y: anchor.y + Math.sin(angle) * radius,
+            dx: -Math.sin(angle),
+            dy: Math.cos(angle),
           }
         }
       }
@@ -277,11 +317,11 @@ export default class ShipRendererCanvas {
   }
 
   _size(type) {
-    return { fighter: 4, bomber: 4.6, cruiser: 5.2, carrier: 6.2, dreadnought: 7.2, mothership: 9 }[type] ?? 4
+    return { fighter: 4, bomber: 4.6, cruiser: 5.2, carrier: 6.2, dreadnought: 7.2, mothership: 11 }[type] ?? 4
   }
 
   _typeScale(type) {
-    return { fighter: 1.0, bomber: 1.08, cruiser: 1.16, carrier: 1.26, dreadnought: 1.36, mothership: 1.5 }[type] ?? 1.0
+    return { fighter: 1.0, bomber: 1.08, cruiser: 1.16, carrier: 1.26, dreadnought: 1.36, mothership: 1.78 }[type] ?? 1.0
   }
 
   _spriteDef(type) {
@@ -376,22 +416,24 @@ export default class ShipRendererCanvas {
       mothership: {
         pixel: 1,
         rows: [
-          '00000000220000000',
-          '00000002442000000',
-          '00000002112000000',
-          '00000011111100000',
-          '00001111111111000',
-          '00011111111111100',
-          '01111111111111110',
-          '11111111111111111',
-          '01111133333111110',
-          '11111130003111111',
-          '11113300000331111',
-          '01113000000031110',
-          '11130006600003111',
-          '01130006600003110',
-          '00116666666661100',
-          '00007777777770000',
+          '000000000022000000000',
+          '000000000244200000000',
+          '000000000211200000000',
+          '000000001111110000000',
+          '000000111111111100000',
+          '000001111111111110000',
+          '000111111111111111100',
+          '001111111111111111110',
+          '011111111111111111111',
+          '111111111111111111111',
+          '011111133333333111111',
+          '111111130000003111111',
+          '111111300000000311111',
+          '011113300000000331110',
+          '111130000066600000311',
+          '011130000066600000311',
+          '001116666666666661110',
+          '000007777777777777000',
         ],
       },
     }

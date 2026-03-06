@@ -188,6 +188,14 @@ def _resolve_combat(state: GameState, ship_map: dict, planet_map: dict, faction_
                 ship.state = "idle"
             continue   # moving ships keep moving; attacking ships idle
 
+        # Follower mode reuses target_ship for allied mothership anchors.
+        # Never fire on allied targets.
+        if target.owner == ship.owner:
+            if ship.state == "attacking":
+                ship.target_ship = None
+                ship.state = "idle"
+            continue
+
         damage = float(SHIP_STATS[ship.type]["damage"]) * getattr(ship, 'damage_mult', 1.0)
 
         # Defense bonus if target orbits its own planet (base defense + level bonus)

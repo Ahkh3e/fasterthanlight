@@ -3,7 +3,7 @@ import PlanetRendererCanvas from './render/PlanetRendererCanvas.js'
 import ShipRendererCanvas from './render/ShipRendererCanvas.js'
 import InputHandlerCanvas from './input/InputHandlerCanvas.js'
 import AudioManager from './audio/AudioManager.js'
-import { GALAXY_WIDTH, GALAXY_HEIGHT, ZOOM_MIN, ZOOM_MAX } from './config.js'
+import { GALAXY_WIDTH, GALAXY_HEIGHT, ZOOM_MIN, ZOOM_MAX, DEV_MENU_ENABLED } from './config.js'
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:8000'
@@ -25,6 +25,7 @@ class GameApp {
     this.shipRenderer = null
     this.inputHandler = null
     this.selectedPlanet = null
+    this.selectedMothership = null
     this.selectedShips = new Set()
     this.audio = new AudioManager()
     this.gameId = null
@@ -169,6 +170,7 @@ class GameApp {
 
     // Dashboard state: track last-rendered planet state to avoid unnecessary rebuilds
     this._dashboardSig = null
+    this._mothershipDashboardSig = null
     this._lastConstructCredits = null
 
     // Lane path cache (Path2D, rebuilt on tick not every frame)
@@ -383,6 +385,12 @@ class GameApp {
       e.preventDefault()
     })
 
+    // Double-click for mothership dashboard
+    this.canvas.addEventListener('dblclick', (e) => {
+      if (e.button !== 0) return
+      this.handleDoubleClick(e)
+    })
+
     // Wheel for zoom (always zoom, centered on mouse position)
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault()
@@ -511,6 +519,9 @@ class GameApp {
     window.addEventListener('keydown', unlockAudio, { once: true })
     this.updateAudioButtons()
     this.updateVolumeUI()
+
+    const devBtn = document.getElementById('start-dev-btn')
+    if (devBtn) devBtn.style.display = DEV_MENU_ENABLED ? 'inline-block' : 'none'
     
     // Setup dashboard
     this.setupDashboard()
@@ -1184,6 +1195,7 @@ class GameApp {
   setupDashboard() {
     // Dashboard is already in HTML, just need to handle interactions
     const dashboard = document.getElementById('dashboard')
+    const mothershipDashboard = document.getElementById('mothership-dashboard')
     
     // Close button
     dashboard.addEventListener('click', (e) => {
@@ -1198,6 +1210,26 @@ class GameApp {
         this.closeDashboard()
       }
     })
+
+    if (mothershipDashboard) {
+      mothershipDashboard.addEventListener('click', (e) => {
+        if (e.target.closest('.dashboard-close')) this.closeDashboard()
+      })
+
+      mothershipDashboard.addEventListener('click', (e) => {
+        if (e.target === mothershipDashboard) this.closeDashboard()
+      })
+    }
+
+    document.getElementById('mothership-toggle-mode')?.addEventListener('click', () => {
+      this.toggleMothershipMode()
+    })
+    document.getElementById('mothership-assign-selected')?.addEventListener('click', () => {
+      this.assignSelectedFollowers()
+    })
+    document.getElementById('mothership-unassign-selected')?.addEventListener('click', () => {
+      this.unassignSelectedFollowers()
+    })
   }
 
   openDashboard(planet) {
@@ -1206,6 +1238,7 @@ class GameApp {
     // Close tier dropdown to avoid overlap
     const tierDD = document.getElementById('tier-dropdown')
     if (tierDD) tierDD.style.display = 'none'
+    this.closeMothershipDashboardOnly()
 
     // Track signature so applyDelta knows the current render state
     this._dashboardSig = `${planet.owner}|${planet.level}|${planet.buildings.join(',')}|${(planet.build_queue ?? []).map(q => q.name ?? q.ship_type ?? 'level_up').join(',')}`
@@ -1259,8 +1292,169 @@ class GameApp {
     dashboard.style.display = 'block'
   }
 
+  openMothershipDashboard(ship) {
+    if (!ship || ship.type !== 'mothership' || !this.gameState) return
+
+    const tierDD = document.getElementById('tier-dropdown')
+    if (tierDD) tierDD.style.display = 'none'
+
+    this.selectedMothership = ship.id
+    this.selectedPlanet = null
+    this.closePlanetDashboardOnly()
+    this.renderMothershipDashboard(ship)
+
+    const panel = document.getElementById('mothership-dashboard')
+    if (panel) panel.style.display = 'block'
+  }
+
+  closePlanetDashboardOnly() {
+    const panel = document.getElementById('dashboard')
+    if (panel) panel.style.display = 'none'
+  }
+
+  closeMothershipDashboardOnly() {
+    const panel = document.getElementById('mothership-dashboard')
+    if (panel) panel.style.display = 'none'
+  }
+
+  renderMothershipDashboard(ship) {
+    if (!ship || !this.gameState) return
+    const pid = this.gameState.player_faction_id
+    const playerFaction = this.gameState.factions.find(f => f.id === pid)
+    if (!playerFaction || ship.owner !== pid) return
+
+    const ownedShips = this.gameState.ships.filter(s => s.owner === pid)
+    const followers = ownedShips.filter(s => s.target_ship === ship.id && s.id !== ship.id)
+    const availableShips = ownedShips.filter(s => s.id !== ship.id && s.type !== 'mothership' && !s.target_ship)
+
+    const upgrades = ship.mothership_upgrades || {}
+    const level = Math.max(1, Number(ship.mothership_level || 1))
+    const mode = String(ship.mothership_mode || 'orbit')
+    const shipyardLevel = Math.max(0, Number(upgrades.shipyard ?? upgrades.assembly ?? 0))
+
+    const sig = `${ship.id}|${ship.health}|${level}|${mode}|${shipyardLevel}|${followers.map(f => f.id).join(',')}|${availableShips.length}|${Math.floor(playerFaction.credits)}`
+    if (sig === this._mothershipDashboardSig) return
+    this._mothershipDashboardSig = sig
+
+    const setText = (id, value) => {
+      const el = document.getElementById(id)
+      if (el) el.textContent = value
+    }
+
+    setText('mothership-dashboard-title', `${ship.type.toUpperCase()} ${ship.id}`)
+    setText('mothership-dashboard-owner', `${playerFaction.name} Fleet Command`)
+    setText('mothership-level', `${level}`)
+    setText('mothership-mode', mode === 'formation' ? 'Formation' : 'Orbit')
+    setText('mothership-followers-count', `${followers.length}`)
+    setText('mothership-available-count', `${availableShips.length}`)
+    setText('mothership-spawn-rate', `${level}`)
+    setText('mothership-shipyard-bonus', `+${shipyardLevel}`)
+
+    const followersList = document.getElementById('mothership-followers-list')
+    if (followersList) {
+      followersList.innerHTML = followers.length
+        ? followers.map(f => `<div class="mothership-follower-chip"><span>${f.type}</span><span>${f.id}</span></div>`).join('')
+        : '<div class="mothership-follower-chip"><span>No followers assigned</span><span>--</span></div>'
+    }
+
+    const upgradesEl = document.getElementById('mothership-upgrades')
+    if (upgradesEl) {
+      const levelMax = 5
+      const levelCost = Math.round(1400 * Math.pow(2.1, Math.max(0, level - 1)))
+      const canLevel = level < levelMax && playerFaction.credits >= levelCost
+      const shipyardMax = 4
+      const shipyardCost = Math.round(1100 * Math.pow(1.9, Math.max(0, shipyardLevel)))
+      const canShipyard = shipyardLevel < shipyardMax && playerFaction.credits >= shipyardCost
+
+      upgradesEl.innerHTML = `
+        <button style="text-align:left;opacity:${(level < levelMax && canLevel) ? 1 : 0.55};" ${(level < levelMax && canLevel) ? '' : 'disabled'} onclick="window._mothershipUpgrade?.('${ship.id}','level')">
+          <div class="dash-btn-title">Command Core Lv ${level}/${levelMax}</div>
+          <div class="dash-btn-cost">${level < levelMax ? `💰${levelCost}` : 'MAX'}</div>
+          <div class="dash-btn-desc">+1 fighter per spawn burst</div>
+        </button>
+        <button style="text-align:left;opacity:${(shipyardLevel < shipyardMax && canShipyard) ? 1 : 0.55};" ${(shipyardLevel < shipyardMax && canShipyard) ? '' : 'disabled'} onclick="window._mothershipUpgrade?.('${ship.id}','shipyard')">
+          <div class="dash-btn-title">Shipyard Lv ${shipyardLevel}/${shipyardMax}</div>
+          <div class="dash-btn-cost">${shipyardLevel < shipyardMax ? `💰${shipyardCost}` : 'MAX'}</div>
+          <div class="dash-btn-desc">+1 bonus ship per fleet purchase</div>
+        </button>
+      `
+    }
+
+    const fleetEl = document.getElementById('mothership-fleet-buy')
+    if (fleetEl) {
+      const tier = playerFaction.tech_tier || 1
+      const BUY_OPTIONS = [
+        { type: 'fighter', label: 'Fighter Wing', cost: 50, tier: 1, count: 3 },
+        { type: 'cruiser', label: 'Cruiser Wing', cost: 150, tier: 2, count: 2 },
+        { type: 'bomber', label: 'Bomber Wing', cost: 120, tier: 2, count: 2 },
+        { type: 'carrier', label: 'Carrier Wing', cost: 400, tier: 3, count: 1 },
+        { type: 'dreadnought', label: 'Dreadnought Wing', cost: 800, tier: 3, count: 1 },
+      ]
+      fleetEl.innerHTML = BUY_OPTIONS.map(opt => {
+        const unlocked = tier >= opt.tier
+        const totalCost = opt.cost * opt.count
+        const canBuy = unlocked && playerFaction.credits >= totalCost
+        const hint = unlocked ? '' : `Needs Tier ${opt.tier}`
+        return `<button style="text-align:left;opacity:${canBuy ? 1 : 0.55};" ${canBuy ? '' : 'disabled'} onclick="window._mothershipBuyFleet?.('${ship.id}','${opt.type}',${opt.count})">
+          <div class="dash-btn-title">${opt.label}</div>
+          <div class="dash-btn-cost">💰${totalCost}</div>
+          <div class="dash-btn-desc">Base ${opt.count} + shipyard bonus</div>
+          ${hint ? `<div class="dash-btn-hint">${hint}</div>` : ''}
+        </button>`
+      }).join('')
+    }
+  }
+
+  getSelectedMothershipShip() {
+    if (!this.selectedMothership || !this.gameState) return null
+    return this.gameState.ships.find(s => s.id === this.selectedMothership && s.type === 'mothership') || null
+  }
+
+  toggleMothershipMode() {
+    const mothership = this.getSelectedMothershipShip()
+    if (!mothership) return
+    const current = String(mothership.mothership_mode || 'orbit')
+    const next = current === 'formation' ? 'orbit' : 'formation'
+    this.socket?.send({ type: 'mothership_mode', ship_id: mothership.id, mode: next })
+    this.audio.playSfx('click')
+  }
+
+  assignSelectedFollowers() {
+    const mothership = this.getSelectedMothershipShip()
+    if (!mothership || !this.gameState) return
+    const pid = this.gameState.player_faction_id
+    const shipMap = {}
+    this.gameState.ships.forEach(s => { shipMap[s.id] = s })
+    const followerIds = [...this.selectedShips]
+      .map(id => shipMap[id])
+      .filter(Boolean)
+      .filter(s => s.owner === pid && s.id !== mothership.id && s.type !== 'mothership')
+      .map(s => s.id)
+    if (!followerIds.length) return
+    this.socket?.send({ type: 'mothership_follow', ship_id: mothership.id, follower_ids: followerIds })
+    this.audio.playSfx('click')
+  }
+
+  unassignSelectedFollowers() {
+    const mothership = this.getSelectedMothershipShip()
+    if (!mothership || !this.gameState) return
+    const shipMap = {}
+    this.gameState.ships.forEach(s => { shipMap[s.id] = s })
+    const followerIds = [...this.selectedShips]
+      .map(id => shipMap[id])
+      .filter(Boolean)
+      .filter(s => s.target_ship === mothership.id && s.id !== mothership.id)
+      .map(s => s.id)
+    if (!followerIds.length) return
+    this.socket?.send({ type: 'mothership_unfollow', ship_id: mothership.id, follower_ids: followerIds })
+    this.audio.playSfx('click')
+  }
+
   closeDashboard() {
-    document.getElementById('dashboard').style.display = 'none'
+    const planetDash = document.getElementById('dashboard')
+    const mothershipDash = document.getElementById('mothership-dashboard')
+    if (planetDash) planetDash.style.display = 'none'
+    if (mothershipDash) mothershipDash.style.display = 'none'
   }
 
   updateConstructionButtons(planet) {
@@ -1302,10 +1496,10 @@ class GameApp {
     const SHIPS = [
       { name: 'fighter',     label: 'Fighter',      credits:  50, tier: 1, desc: 'HP:50 DMG:8 SPD:30 · 5s' },
       { name: 'cruiser',     label: 'Cruiser',      credits: 150, tier: 2, desc: 'HP:150 DMG:20 SPD:22 · 10s' },
-      { name: 'bomber',      label: 'Bomber',       credits: 120, tier: 2, desc: 'HP:120 DMG:45 SPD:18 · 9s' },
+      { name: 'bomber',      label: 'Bomber',       credits: 120, tier: 2, desc: 'HP:120 DMG:45 SPD:43.2 · 9s' },
       { name: 'carrier',     label: 'Carrier',      credits: 400, tier: 3, desc: 'HP:300 DMG:10 SPD:14 · 25s' },
-      { name: 'dreadnought', label: 'Dreadnought',  credits: 800, tier: 3, desc: 'HP:600 DMG:80 SPD:10 · 40s' },
-      { name: 'mothership',  label: 'Mothership',   credits: 2500, tier: 3, desc: 'HP:1000 spawns fighters · 75s' },
+      { name: 'dreadnought', label: 'Dreadnought',  credits: 800, tier: 3, desc: 'HP:600 DMG:80 SPD:40.5 · 40s' },
+      { name: 'mothership',  label: 'Mothership',   credits: 2500, tier: 3, desc: 'HP:1000 SPD:40.5 spawns fighters · 75s' },
     ]
 
     const makeBtn = (label, cost, desc, canBuild, onClick, hint = '') => {
@@ -1489,6 +1683,16 @@ class GameApp {
     this.startNewGame()
   }
 
+  launchDevSandbox() {
+    this.audio.playSfx('click')
+    this.closeTutorial()
+    document.getElementById('start-screen')?.style.setProperty('display', 'none')
+    document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
+    this._showMenuStars(false)
+    this.clearLobbyState()
+    this.startNewGame({ devStart: true })
+  }
+
   openLoadMenu() {
     // Not implemented
   }
@@ -1617,14 +1821,16 @@ class GameApp {
     this.clearLobbyState()
   }
 
-  async startNewGame() {
+  async startNewGame(opts = {}) {
     try {
+      const devStart = !!opts.devStart
       const response = await fetch(`${API_URL}/game/new`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           seed: null,
-          planet_count: 120
+          planet_count: 120,
+          dev_start: devStart,
         })
       })
 
@@ -1766,6 +1972,10 @@ class GameApp {
         s.state = ds.state
         if (ds.health != null) s.health = ds.health
         if ('target_planet' in ds) s.target_planet = ds.target_planet
+        if ('target_ship' in ds) s.target_ship = ds.target_ship
+        if ('mothership_mode' in ds) s.mothership_mode = ds.mothership_mode
+        if ('mothership_level' in ds) s.mothership_level = ds.mothership_level
+        if ('mothership_upgrades' in ds) s.mothership_upgrades = ds.mothership_upgrades
         // Orbiting ships: only update orbit_radius (client renders position locally)
         if (ds.orbit_radius != null) s.orbit_radius = ds.orbit_radius
         // Non-orbiting ships: update position and movement data
@@ -1785,6 +1995,10 @@ class GameApp {
         if (destroyedIds.size > 0) {
           this.gameState.ships = this.gameState.ships.filter(s => !destroyedIds.has(s.id))
           this.selectedShips = new Set([...this.selectedShips].filter(id => !destroyedIds.has(id)))
+          if (this.selectedMothership && destroyedIds.has(this.selectedMothership)) {
+            this.selectedMothership = null
+            this.closeMothershipDashboardOnly()
+          }
         }
       }
 
@@ -1793,6 +2007,12 @@ class GameApp {
 
       this.updateHUD()
       this.lastTickTime = performance.now()
+
+      const msDash = document.getElementById('mothership-dashboard')
+      if (this.selectedMothership && msDash && msDash.style.display !== 'none') {
+        const mothership = this.getSelectedMothershipShip()
+        if (mothership) this.renderMothershipDashboard(mothership)
+      }
     }
 
     // Handle events
@@ -2196,12 +2416,18 @@ class GameApp {
 
   // Dashboard functions
   toggleDashboard() {
-    const dashboard = document.getElementById('dashboard')
-    if (dashboard.style.display === 'none' || !dashboard.style.display) {
-      // Open dashboard for selected planet
+    const planetDash = document.getElementById('dashboard')
+    const mothershipDash = document.getElementById('mothership-dashboard')
+    const visible = (planetDash && planetDash.style.display !== 'none') || (mothershipDash && mothershipDash.style.display !== 'none')
+    if (!visible) {
       if (this.selectedPlanet) {
         const planet = this.gameState.planets.find(p => p.id === this.selectedPlanet)
         if (planet) this.openDashboard(planet)
+        return
+      }
+      if (this.selectedMothership) {
+        const mothership = this.getSelectedMothershipShip()
+        if (mothership) this.openMothershipDashboard(mothership)
       }
     } else {
       this.closeDashboard()
@@ -2231,6 +2457,7 @@ class GameApp {
     this.gameId = null
     this.planetRenderers = {}
     this.selectedPlanet = null
+    this.selectedMothership = null
     this.selectedShips = new Set()
     this.clearLobbyState()
     this.clearPersistedSession()
@@ -2479,6 +2706,7 @@ class GameApp {
 
     if (clickedPlanet) {
       this.selectedPlanet = clickedPlanet.id
+      this.selectedMothership = null
       this.selectedShips.clear()
       this.updateHUD()
       this.openDashboard(clickedPlanet)
@@ -2500,15 +2728,46 @@ class GameApp {
         this.selectedShips.add(clickedShip.id)
       }
       this.selectedPlanet = null
+      this.selectedMothership = this.selectedShips.has(clickedShip.id) && clickedShip.type === 'mothership'
+        ? clickedShip.id
+        : null
       this.updateHUD()
+      this.closeDashboard()
       return
     }
 
     // Clicked empty space - clear selection
     this.selectedPlanet = null
+    this.selectedMothership = null
     this.selectedShips.clear()
     this.updateHUD()
     this.closeDashboard()
+  }
+
+  handleDoubleClick(e) {
+    if (!this.gameState) return
+
+    const rect = this.canvas.getBoundingClientRect()
+    const mouseX = e.clientX - rect.left
+    const mouseY = e.clientY - rect.top
+    const worldX = (mouseX - this.panX) / this.zoom
+    const worldY = (mouseY - this.panY) / this.zoom
+
+    const clickedShip = this.gameState.ships.find(s => {
+      const dist = Math.sqrt(Math.pow(worldX - s.x, 2) + Math.pow(worldY - s.y, 2))
+      return dist <= 10
+    })
+
+    if (!clickedShip) return
+    if (clickedShip.owner !== this.gameState.player_faction_id) return
+    if (clickedShip.type !== 'mothership') return
+
+    this.selectedShips.clear()
+    this.selectedShips.add(clickedShip.id)
+    this.selectedMothership = clickedShip.id
+    this.selectedPlanet = null
+    this.updateHUD()
+    this.openMothershipDashboard(clickedShip)
   }
 
   handleMoveCommand(e) {
@@ -2527,6 +2786,24 @@ class GameApp {
       const dist = Math.sqrt(Math.pow(worldX - p.x, 2) + Math.pow(worldY - p.y, 2))
       return dist <= p.radius + 20
     })
+
+    // If targeting an owned mothership, assign selected ships to follow it.
+    const targetMothership = this.gameState.ships.find(s => {
+      if (s.type !== 'mothership') return false
+      if (s.owner !== this.gameState.player_faction_id) return false
+      const dist = Math.sqrt(Math.pow(worldX - s.x, 2) + Math.pow(worldY - s.y, 2))
+      return dist <= 16
+    })
+
+    if (targetMothership) {
+      this.socket?.send({
+        type: 'move',
+        ship_ids: [...this.selectedShips],
+        target: { ship_id: targetMothership.id }
+      })
+      this.moveTargets.push({ x: targetMothership.x, y: targetMothership.y, t: performance.now() })
+      return
+    }
 
     if (targetPlanet) {
       this.socket?.send({
@@ -2617,6 +2894,8 @@ class GameApp {
 
     // Clear planet selection when using box selection
     this.selectedPlanet = null
+    this.selectedMothership = null
+    this.closeDashboard()
     this.updateHUD()
   }
 }
@@ -2715,6 +2994,12 @@ window.setEnergy = (level) => window.gameApp?.setEnergy(level)
 window.stopShips = () => window.gameApp?.stopShips()
 window._buyFleetUpgrade = (type) => {
   window.gameApp?.socket?.send({ type: 'fleet_upgrade', upgrade_type: type })
+}
+window._mothershipUpgrade = (shipId, upgradeType) => {
+  window.gameApp?.socket?.send({ type: 'mothership_upgrade', ship_id: shipId, upgrade_type: upgradeType })
+}
+window._mothershipBuyFleet = (shipId, shipType, count) => {
+  window.gameApp?.socket?.send({ type: 'mothership_buy_fleet', ship_id: shipId, ship_type: shipType, count })
 }
 window.hostLobby = () => window.gameApp?.hostLobby()
 window.joinLobby = () => window.gameApp?.joinLobby()

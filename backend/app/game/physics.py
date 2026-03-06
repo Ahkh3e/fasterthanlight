@@ -105,6 +105,42 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
         ship.state = "idle"
         return
 
+    # Dynamic follow target: if moving toward a ship, refresh target point each tick
+    formation_follow = False
+    if ship.target_ship and not ship.target_planet and ships:
+        anchor = next((s for s in ships if s.id == ship.target_ship and s.health > 0), None)
+        if anchor:
+            if anchor.type == "mothership" and getattr(anchor, "mothership_mode", "orbit") == "formation":
+                formation_follow = True
+                followers = sorted(
+                    [s for s in ships if s.target_ship == anchor.id and s.owner == anchor.owner and s.id != anchor.id],
+                    key=lambda s: s.id,
+                )
+                try:
+                    idx = followers.index(ship)
+                except ValueError:
+                    idx = 0
+                col_count = 3
+                row = idx // col_count
+                col = idx % col_count
+                lane = (col - (col_count - 1) / 2.0)
+                behind = 70.0 + row * 28.0
+                side = lane * 26.0
+                avx = anchor.vx if abs(anchor.vx) > 1e-3 or abs(anchor.vy) > 1e-3 else 0.0
+                avy = anchor.vy if abs(anchor.vx) > 1e-3 or abs(anchor.vy) > 1e-3 else -1.0
+                amag = math.sqrt(avx * avx + avy * avy)
+                if amag <= 1e-6:
+                    avx, avy, amag = 0.0, -1.0, 1.0
+                fx, fy = avx / amag, avy / amag
+                lx, ly = -fy, fx
+                ship.target_x = float(anchor.x - fx * behind + lx * side)
+                ship.target_y = float(anchor.y - fy * behind + ly * side)
+            else:
+                ship.target_x = float(anchor.x)
+                ship.target_y = float(anchor.y)
+        else:
+            ship.target_ship = None
+
     dx = ship.target_x - ship.x
     dy = ship.target_y - ship.y
     dist = math.sqrt(dx * dx + dy * dy)
@@ -121,10 +157,16 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
             arrival = planet.radius + max_ring_offset
         else:
             arrival = ARRIVAL_THRESHOLD
+    elif ship.target_ship:
+        arrival = 42.0
     else:
         arrival = ARRIVAL_THRESHOLD
 
     if dist < arrival:
+        if formation_follow:
+            ship.vx = 0.0
+            ship.vy = 0.0
+            return
         _handle_arrival(ship, planet_map, ships or [])
         return
 
@@ -264,8 +306,28 @@ def _handle_arrival(ship: Ship, planet_map: dict, ships: list[Ship]) -> None:
             ship.vx = 0.0
             ship.vy = 0.0
             return
+    if ship.target_ship:
+        anchor = next((s for s in ships if s.id == ship.target_ship and s.health > 0), None)
+        if anchor:
+            orbiting_here = sum(
+                1 for s in ships
+                if s.id != ship.id and s.state == "orbiting" and s.target_ship == anchor.id
+            )
+            ring = orbiting_here // 8
+            slot = orbiting_here % 8
+            ship.orbit_radius = 36.0 + ring * 12.0
+            ship.orbit_angle = (slot / 8.0) * (2.0 * math.pi)
+            ship.state = "orbiting"
+            ship.target_planet = None
+            ship.target_ship = anchor.id
+            ship.x = round(anchor.x + math.cos(ship.orbit_angle) * ship.orbit_radius, 2)
+            ship.y = round(anchor.y + math.sin(ship.orbit_angle) * ship.orbit_radius, 2)
+            ship.vx = 0.0
+            ship.vy = 0.0
+            return
     # Free-space arrival — transition to idle drift
     ship.state      = "idle"
+    ship.target_ship = None
     ship.target_x   = None
     ship.target_y   = None
 

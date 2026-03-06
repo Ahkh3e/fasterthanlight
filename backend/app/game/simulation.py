@@ -33,7 +33,7 @@ def tick(state: GameState, planet_map: dict, ship_map: dict, faction_map: dict) 
     if state.tick % 20 == 0:
         _update_sensors(state.ships, state.planets)
     _recompute_planet_ships(state.planets, state.ships, planet_map)
-    _harvest_resources(state.factions, state.planets, faction_map)
+    _harvest_resources(state.factions, state.planets, faction_map, state.dev_mode)
     _process_build_queues(state, planet_map, faction_map)
     _auto_fleet(state, faction_map)
     _mothership_spawn(state, faction_map)
@@ -44,9 +44,13 @@ def tick(state: GameState, planet_map: dict, ship_map: dict, faction_map: dict) 
 
 def _update_orbits(ships: list[Ship], planet_map: dict, tick: int) -> None:
     by_planet: dict[str, list[Ship]] = {}
+    by_anchor: dict[str, list[Ship]] = {}
+    ship_map = {s.id: s for s in ships}
     for ship in ships:
         if ship.state == "orbiting" and ship.target_planet:
             by_planet.setdefault(ship.target_planet, []).append(ship)
+        elif ship.state == "orbiting" and ship.target_ship:
+            by_anchor.setdefault(ship.target_ship, []).append(ship)
 
     for planet_id, orbiting in by_planet.items():
         planet = planet_map.get(planet_id)
@@ -78,6 +82,37 @@ def _update_orbits(ships: list[Ship], planet_map: dict, tick: int) -> None:
                 ship.orbit_angle = angle
                 ship.x = round(planet.x + math.cos(angle) * radius, 2)
                 ship.y = round(planet.y + math.sin(angle) * radius, 2)
+
+    # Orbit around mothership anchors
+    for anchor_id, orbiting in by_anchor.items():
+        anchor = ship_map.get(anchor_id)
+        if anchor is None or anchor.health <= 0:
+            continue
+
+        ordered = sorted(orbiting, key=lambda s: s.id)
+        count = len(ordered)
+        if count <= 0:
+            continue
+
+        rings: dict[int, list[Ship]] = {}
+        for idx, ship in enumerate(ordered):
+            ring_idx = idx // 8
+            rings.setdefault(ring_idx, []).append(ship)
+
+        spin_phase = tick * ORBIT_SPEED * 1.2
+        for ring_idx, ring_ships in rings.items():
+            n = len(ring_ships)
+            if n <= 0:
+                continue
+            radius = 36.0 + ring_idx * 12.0
+            step = 2 * math.pi / n
+            start = spin_phase + (ring_idx * 0.33)
+            for i, ship in enumerate(ring_ships):
+                angle = (start + i * step) % (2 * math.pi)
+                ship.orbit_radius = radius
+                ship.orbit_angle = angle
+                ship.x = round(anchor.x + math.cos(angle) * radius, 2)
+                ship.y = round(anchor.y + math.sin(angle) * radius, 2)
 
 
 # ── Sensor sweep ───────────────────────────────────────────────────────────────
@@ -136,7 +171,7 @@ def _recompute_planet_ships(
 # ── Resource harvesting ────────────────────────────────────────────────────────
 
 def _harvest_resources(
-    factions: list[Faction], planets: list[Planet], faction_map: dict
+    factions: list[Faction], planets: list[Planet], faction_map: dict, dev_mode: bool = False
 ) -> None:
     # Single pass: accumulate income and infrastructure totals per faction
     totals: dict[str, dict] = {}
@@ -173,7 +208,8 @@ def _harvest_resources(
             + t["shipyards"]  * SHIPYARD_STORAGE_BONUS
             + t["planets"]    * PLANET_STORAGE_BONUS
         )
-        faction.credits = min(faction.credits, faction.storage_capacity)
+        if not dev_mode:
+            faction.credits = min(faction.credits, faction.storage_capacity)
 
 
 # ── Ship spawning helper ───────────────────────────────────────────────────────
@@ -211,8 +247,10 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
         state="orbiting",
         target_planet=planet.id,
         orbit_angle=angle,
-        orbit_radius=orbit_r,        speed_mult=round(speed_mult, 4),
-        damage_mult=round(damage_mult, 4),    )
+        orbit_radius=orbit_r,
+        speed_mult=round(speed_mult, 4),
+        damage_mult=round(damage_mult, 4),
+    )
     state.ships.append(new_ship)
     planet.ships.append(new_ship.id)
     # Track build stats
@@ -249,32 +287,37 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
 
 def _process_build_queues(state: GameState, planet_map: dict, faction_map: dict) -> None:
     """Tick down build queues; complete buildings and spawn ships when done."""
+    dev_mode = bool(getattr(state, "dev_mode", False))
     for planet in state.planets:
         if not planet.build_queue:
             continue
 
-        item = planet.build_queue[0]
-        item["ticks_remaining"] -= 1
+        while planet.build_queue:
+            item = planet.build_queue[0]
+            item["ticks_remaining"] = item.get("ticks_remaining", 0) - 1
 
-        if item["ticks_remaining"] > 0:
-            continue
+            if item["ticks_remaining"] > 0:
+                break
 
-        planet.build_queue.pop(0)
+            planet.build_queue.pop(0)
 
-        if item["type"] == "building":
-            name = item["name"]
-            if name not in planet.buildings:
-                planet.buildings.append(name)
+            if item["type"] == "building":
+                name = item["name"]
+                if name not in planet.buildings:
+                    planet.buildings.append(name)
 
-        elif item["type"] == "ship":
-            ship_type = item.get("ship_type", "fighter")
-            if planet.owner is not None and SHIP_STATS.get(ship_type):
-                faction = faction_map.get(planet.owner)
-                _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
+            elif item["type"] == "ship":
+                ship_type = item.get("ship_type", "fighter")
+                if planet.owner is not None and SHIP_STATS.get(ship_type):
+                    faction = faction_map.get(planet.owner)
+                    _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
 
-        elif item["type"] == "level_up":
-            if planet.level < 5:
-                planet.level += 1
+            elif item["type"] == "level_up":
+                if planet.level < 5:
+                    planet.level += 1
+
+            if not dev_mode:
+                break
 
 
 # ── Auto-fleet generation ──────────────────────────────────────────────────────
@@ -310,7 +353,10 @@ def _auto_fleet(state: GameState, faction_map: dict) -> None:
 # ── Mothership fighter spawning ─────────────────────────────────────────────
 
 def _mothership_spawn(state: GameState, faction_map: dict) -> None:
-    """Motherships periodically spawn a fighter near themselves."""
+    """Motherships periodically spawn fighters near themselves.
+
+    Spawn count scales with mothership_level (min 1).
+    """
     fighter_stats = SHIP_STATS.get("fighter")
     if not fighter_stats:
         return
@@ -333,51 +379,58 @@ def _mothership_spawn(state: GameState, faction_map: dict) -> None:
         spd_m  = round(bonus["speed"] * (1.0 + fu.get("speed", 0) * FLEET_UPGRADES["speed"]["bonus_per_level"]), 4)
         dmg_m  = round(bonus["damage"] * (1.0 + fu.get("damage", 0) * FLEET_UPGRADES["damage"]["bonus_per_level"]), 4)
 
-        # Spawn fighter in a ring around the mothership
-        count = len(new_ships)
-        angle = (count * 2.399)  # golden angle for spacing
-        offset = 30.0
-        state.ship_id_counter += 1
-        new_ship = Ship(
-            id=f"s-{state.ship_id_counter:04d}",
-            type="fighter",
-            owner=ship.owner,
-            x=round(ship.x + math.cos(angle) * offset, 2),
-            y=round(ship.y + math.sin(angle) * offset, 2),
-            health=hp,
-            max_health=hp,
-            state=ship.state,
-            target_planet=ship.target_planet,
-            target_x=ship.target_x,
-            target_y=ship.target_y,
-            orbit_angle=angle,
-            orbit_radius=ship.orbit_radius,            speed_mult=spd_m,
-            damage_mult=dmg_m,        )
-        new_ships.append(new_ship)
-        state.tick_events.append({
-            "type": "ship_spawned",
-            "ship": {
-                "id":            new_ship.id,
-                "type":          new_ship.type,
-                "owner":         new_ship.owner,
-                "x":             new_ship.x,
-                "y":             new_ship.y,
-                "vx":            0.0,
-                "vy":            0.0,
-                "health":        new_ship.health,
-                "max_health":    new_ship.max_health,
-                "state":         new_ship.state,
-                "target_planet": new_ship.target_planet,
-                "target_ship":   None,
-                "orbit_angle":   new_ship.orbit_angle,
-                "orbit_radius":  new_ship.orbit_radius,
-                "target_x":      new_ship.target_x,
-                "target_y":      new_ship.target_y,
-                "fuel":          new_ship.fuel,
-                "energy_level":  new_ship.energy_level,
-                "rogue":         False,
-            },
-        })
+        spawn_count = max(1, int(getattr(ship, "mothership_level", 1)))
+        base_index = len(new_ships)
+        mode = getattr(ship, "mothership_mode", "orbit")
+        for local_index in range(spawn_count):
+            # Spawn fighters in a ring around the mothership
+            idx = base_index + local_index
+            angle = (idx * 2.399)  # golden angle for spacing
+            offset = 30.0
+            state.ship_id_counter += 1
+            new_ship = Ship(
+                id=f"s-{state.ship_id_counter:04d}",
+                type="fighter",
+                owner=ship.owner,
+                x=round(ship.x + math.cos(angle) * offset, 2),
+                y=round(ship.y + math.sin(angle) * offset, 2),
+                health=hp,
+                max_health=hp,
+                state="moving" if mode == "formation" else "orbiting",
+                target_planet=None,
+                target_ship=ship.id,
+                target_x=float(ship.x),
+                target_y=float(ship.y),
+                orbit_angle=angle,
+                orbit_radius=36.0,
+                speed_mult=spd_m,
+                damage_mult=dmg_m,
+            )
+            new_ships.append(new_ship)
+            state.tick_events.append({
+                "type": "ship_spawned",
+                "ship": {
+                    "id":            new_ship.id,
+                    "type":          new_ship.type,
+                    "owner":         new_ship.owner,
+                    "x":             new_ship.x,
+                    "y":             new_ship.y,
+                    "vx":            0.0,
+                    "vy":            0.0,
+                    "health":        new_ship.health,
+                    "max_health":    new_ship.max_health,
+                    "state":         new_ship.state,
+                    "target_planet": new_ship.target_planet,
+                    "target_ship":   new_ship.target_ship,
+                    "orbit_angle":   new_ship.orbit_angle,
+                    "orbit_radius":  new_ship.orbit_radius,
+                    "target_x":      new_ship.target_x,
+                    "target_y":      new_ship.target_y,
+                    "fuel":          new_ship.fuel,
+                    "energy_level":  new_ship.energy_level,
+                    "rogue":         False,
+                },
+            })
 
     state.ships.extend(new_ships)
 

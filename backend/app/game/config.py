@@ -95,7 +95,7 @@ TECH_THRESHOLDS = {2: 500, 3: 2000}
 TECH_PLANET_REQ = {2: (5, 2), 3: (10, 3)}  # (planet_count, min_planet_level) to advance
 
 # Starting resources
-PLAYER_START_CREDITS = 500.0
+PLAYER_START_CREDITS = 10000.0
 NPC_START_CREDITS = 300.0
 
 # ── Planet leveling ───────────────────────────────────────────────────────────
@@ -124,10 +124,10 @@ ORBIT_RING_STEP         = 18      # spacing between orbit rings
 SHIP_STATS = {
     "fighter":     dict(hp=50,  damage=8,  fire_rate=15, speed=54.0, sensor=300, fuel=0.003),
     "cruiser":     dict(hp=150, damage=20, fire_rate=20, speed=39.6, sensor=350, fuel=0.004),
-    "bomber":      dict(hp=120, damage=45, fire_rate=35, speed=32.4, sensor=300, fuel=0.004),
+    "bomber":      dict(hp=120, damage=45, fire_rate=35, speed=43.2, sensor=300, fuel=0.004),
     "carrier":     dict(hp=300, damage=10, fire_rate=25, speed=25.2, sensor=400, fuel=0.006),
-    "dreadnought": dict(hp=600, damage=80, fire_rate=30, speed=18.0, sensor=380, fuel=0.008),
-    "mothership":  dict(hp=1000, damage=5,  fire_rate=40, speed=9.6,  sensor=450, fuel=0.010),
+    "dreadnought": dict(hp=600, damage=80, fire_rate=30, speed=40.5, sensor=380, fuel=0.008),
+    "mothership":  dict(hp=1000, damage=5,  fire_rate=40, speed=40.5, sensor=450, fuel=0.010),
 }
 SHIP_ATTACK_RANGE = {
     "fighter":150, "cruiser":250,
@@ -156,6 +156,22 @@ FLEET_UPGRADES = {
     "speed":  {"label": "Thruster Boost",  "max_level": 5, "cost_base": 200, "cost_scale": 2.0, "bonus_per_level": 0.08},
     "health": {"label": "Hull Plating",    "max_level": 5, "cost_base": 250, "cost_scale": 2.0, "bonus_per_level": 0.10},
     "damage": {"label": "Weapon Systems",  "max_level": 5, "cost_base": 300, "cost_scale": 2.0, "bonus_per_level": 0.08},
+}
+
+MOTHERSHIP_UPGRADES = {
+    "level": {
+        "label": "Command Core",
+        "max_level": 5,
+        "cost_base": 1400,
+        "cost_scale": 2.1,
+    },
+    "shipyard": {
+        "label": "Shipyard",
+        "max_level": 4,
+        "cost_base": 1100,
+        "cost_scale": 1.9,
+        "extra_fleet_per_level": 1,
+    },
 }
 
 # ── Conquest ──────────────────────────────────────────────────────────────────
