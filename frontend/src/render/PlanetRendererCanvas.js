@@ -18,6 +18,10 @@ export default class PlanetRendererCanvas {
   }
 
   update(planetData, playerFactionId, factionMap) {
+    // Invalidate sprite cache when level or owner changes (affects colors)
+    if (this.planet && (this.planet.level !== planetData.level || this.planet.owner !== planetData.owner)) {
+      this._spriteCache.clear()
+    }
     this.planet = planetData
     this.playerFactionId = playerFactionId
     this.factionMap = factionMap || {}
@@ -323,7 +327,8 @@ export default class PlanetRendererCanvas {
   _getPlanetSprite(planet, radius, explored) {
     const r = Math.max(3, Math.round(radius))
     const style = this._planetStyle(planet)
-    const key = `${planet.id}|${style.id}|${r}|${explored ? 'e' : 'u'}`
+    const level = planet.level || 1
+    const key = `${planet.id}|${style.id}|${r}|${explored ? 'e' : 'u'}|L${level}`
     const cached = this._spriteCache.get(key)
     if (cached) return cached
 
@@ -397,6 +402,34 @@ export default class PlanetRendererCanvas {
           sctx.fillRect(x, y, 1, 1)
         }
       }
+    }
+
+    // Level-based visual enhancements: glow overlay for higher levels
+    const lvl = planet.level || 1
+    if (lvl >= 2) {
+      const ownerColor = this.factionMap[planet.owner]?.colour
+        || (planet.owner === this.playerFactionId ? '#00ffff' : '#88bbdd')
+      const glowColors = {
+        2: { color: ownerColor, alpha: 0.06, rimAlpha: 0.15 },
+        3: { color: ownerColor, alpha: 0.10, rimAlpha: 0.25 },
+        4: { color: '#ffd700',  alpha: 0.08, rimAlpha: 0.22 },
+        5: { color: '#ff88ff',  alpha: 0.10, rimAlpha: 0.30 },
+      }
+      const glow = glowColors[Math.min(lvl, 5)]
+      // Inner glow tint
+      sctx.globalAlpha = glow.alpha
+      sctx.fillStyle = glow.color
+      sctx.beginPath()
+      sctx.arc(c, c, r - 1, 0, Math.PI * 2)
+      sctx.fill()
+      // Outer rim glow
+      sctx.globalAlpha = glow.rimAlpha
+      sctx.strokeStyle = glow.color
+      sctx.lineWidth = lvl >= 4 ? 2 : 1.5
+      sctx.beginPath()
+      sctx.arc(c, c, r + 1, 0, Math.PI * 2)
+      sctx.stroke()
+      sctx.globalAlpha = 1.0
     }
 
     this._spriteCache.set(key, sprite)

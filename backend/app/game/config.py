@@ -151,6 +151,13 @@ SHIP_BUILD_TICKS = {
     "mothership":  1500,  # 75 s
 }
 
+# ── Fleet Upgrades (purchasable per-faction perks) ────────────────────────────
+FLEET_UPGRADES = {
+    "speed":  {"label": "Thruster Boost",  "max_level": 5, "cost_base": 200, "cost_scale": 1.8, "bonus_per_level": 0.08},
+    "health": {"label": "Hull Plating",    "max_level": 5, "cost_base": 250, "cost_scale": 1.8, "bonus_per_level": 0.10},
+    "damage": {"label": "Weapon Systems",  "max_level": 5, "cost_base": 300, "cost_scale": 1.8, "bonus_per_level": 0.08},
+}
+
 # ── Conquest ──────────────────────────────────────────────────────────────────
 CONQUEST_RADIUS         = 150   # must be < MIN_PLANET_SEPARATION so ships must travel
 CONQUEST_THRESHOLD      = 0.55

@@ -14,7 +14,7 @@ from game.config import (
     BASE_STORAGE_CAPACITY, EXTRACTOR_STORAGE_BONUS, SHIPYARD_STORAGE_BONUS, PLANET_STORAGE_BONUS,
     RESEARCH_PER_LAB, TECH_THRESHOLDS, TECH_PLANET_REQ, SHIP_STATS, AUTO_FLEET_INTERVAL,
     BUILDING_COSTS, SHIP_COSTS, LEVEL_UP_TICKS, TECH_BONUSES,
-    MOTHERSHIP_SPAWN_INTERVAL,
+    MOTHERSHIP_SPAWN_INTERVAL, FLEET_UPGRADES,
 )
 from game.state import GameState, Planet, Ship, Faction
 from game.orbits import (
@@ -189,7 +189,12 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
         return
     tier   = faction.tech_tier if faction else 1
     bonus  = TECH_BONUSES.get(tier, TECH_BONUSES[1])
-    hp     = round(float(stats["hp"]) * bonus["hp"], 1)
+    # Apply fleet upgrade bonuses on top of tech bonuses
+    fu = faction.fleet_upgrades if faction else {}
+    hp_mult = bonus["hp"] * (1.0 + fu.get("health", 0) * FLEET_UPGRADES["health"]["bonus_per_level"])
+    hp     = round(float(stats["hp"]) * hp_mult, 1)
+    speed_mult = bonus["speed"] * (1.0 + fu.get("speed", 0) * FLEET_UPGRADES["speed"]["bonus_per_level"])
+    damage_mult = bonus["damage"] * (1.0 + fu.get("damage", 0) * FLEET_UPGRADES["damage"]["bonus_per_level"])
     # Use planet.ships length (maintained by _recompute_planet_ships) instead
     # of iterating all ships to count orbiting at this planet
     orbiting_here = len(planet.ships)
@@ -206,10 +211,14 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
         state="orbiting",
         target_planet=planet.id,
         orbit_angle=angle,
-        orbit_radius=orbit_r,
-    )
+        orbit_radius=orbit_r,        speed_mult=round(speed_mult, 4),
+        damage_mult=round(damage_mult, 4),    )
     state.ships.append(new_ship)
     planet.ships.append(new_ship.id)
+    # Track build stats
+    if faction:
+        faction.ships_built += 1
+        faction.ships_built_by_type[ship_type] = faction.ships_built_by_type.get(ship_type, 0) + 1
     state.tick_events.append({
         "type": "ship_spawned",
         "ship": {
@@ -318,7 +327,11 @@ def _mothership_spawn(state: GameState, faction_map: dict) -> None:
         faction = faction_map.get(ship.owner)
         tier   = faction.tech_tier if faction else 1
         bonus  = TECH_BONUSES.get(tier, TECH_BONUSES[1])
-        hp     = round(float(fighter_stats["hp"]) * bonus["hp"], 1)
+        fu = faction.fleet_upgrades if faction else {}
+        hp_mult = bonus["hp"] * (1.0 + fu.get("health", 0) * FLEET_UPGRADES["health"]["bonus_per_level"])
+        hp     = round(float(fighter_stats["hp"]) * hp_mult, 1)
+        spd_m  = round(bonus["speed"] * (1.0 + fu.get("speed", 0) * FLEET_UPGRADES["speed"]["bonus_per_level"]), 4)
+        dmg_m  = round(bonus["damage"] * (1.0 + fu.get("damage", 0) * FLEET_UPGRADES["damage"]["bonus_per_level"]), 4)
 
         # Spawn fighter in a ring around the mothership
         count = len(new_ships)
@@ -338,8 +351,8 @@ def _mothership_spawn(state: GameState, faction_map: dict) -> None:
             target_x=ship.target_x,
             target_y=ship.target_y,
             orbit_angle=angle,
-            orbit_radius=ship.orbit_radius,
-        )
+            orbit_radius=ship.orbit_radius,            speed_mult=spd_m,
+            damage_mult=dmg_m,        )
         new_ships.append(new_ship)
         state.tick_events.append({
             "type": "ship_spawned",

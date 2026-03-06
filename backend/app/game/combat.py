@@ -45,8 +45,8 @@ def combat_tick(
     """Run one combat tick. Mutates state in place. Appends to state.tick_events."""
     _move_attackers(state.ships, ship_map)
     _update_engagements(state.ships, ship_map)
-    _resolve_combat(state, ship_map, planet_map)
-    _defense_platforms_fire(state, planet_map)
+    _resolve_combat(state, ship_map, planet_map, faction_map)
+    _defense_platforms_fire(state, planet_map, faction_map)
     _handle_retreats(state.ships, state.planets)
 
     if state.tick % DOMINANCE_CHECK_INTERVAL == 0:
@@ -152,7 +152,7 @@ def _move_attackers(ships: list[Ship], ship_map: dict) -> None:
 
         if dist_sq > engage_dist_sq and dist_sq > 1:
             dist    = math.sqrt(dist_sq)
-            speed   = SHIP_STATS[ship.type]["speed"] * ship.energy_level
+            speed   = SHIP_STATS[ship.type]["speed"] * ship.energy_level * getattr(ship, 'speed_mult', 1.0)
             ship.vx = speed * (dx / dist)
             ship.vy = speed * (dy / dist)
             ship.x  = round(ship.x + ship.vx * DT, 2)
@@ -163,7 +163,7 @@ def _move_attackers(ships: list[Ship], ship_map: dict) -> None:
 
 # ── Damage resolution ─────────────────────────────────────────────────────────
 
-def _resolve_combat(state: GameState, ship_map: dict, planet_map: dict) -> None:
+def _resolve_combat(state: GameState, ship_map: dict, planet_map: dict, faction_map: dict) -> None:
     for ship in state.ships:
         # Fire if fully in combat mode, or if moving and has acquired a return-fire target
         if ship.state not in ("attacking", "moving"):
@@ -188,7 +188,7 @@ def _resolve_combat(state: GameState, ship_map: dict, planet_map: dict) -> None:
                 ship.state = "idle"
             continue   # moving ships keep moving; attacking ships idle
 
-        damage = float(SHIP_STATS[ship.type]["damage"])
+        damage = float(SHIP_STATS[ship.type]["damage"]) * getattr(ship, 'damage_mult', 1.0)
 
         # Defense bonus if target orbits its own planet (base defense + level bonus)
         defense_bonus = 0.0
@@ -209,6 +209,13 @@ def _resolve_combat(state: GameState, ship_map: dict, planet_map: dict) -> None:
 
         if target.health <= 0:
             target.health = 0
+            # Track kill/death stats
+            killer_faction = faction_map.get(ship.owner)
+            victim_faction = faction_map.get(target.owner)
+            if killer_faction:
+                killer_faction.kills += 1
+            if victim_faction:
+                victim_faction.deaths += 1
             state.tick_events.append({
                 "type":      "ship_destroyed",
                 "ship_id":   target.id,
@@ -218,7 +225,7 @@ def _resolve_combat(state: GameState, ship_map: dict, planet_map: dict) -> None:
 
 # ── Defense platforms ─────────────────────────────────────────────────────────
 
-def _defense_platforms_fire(state: GameState, planet_map: dict) -> None:
+def _defense_platforms_fire(state: GameState, planet_map: dict, faction_map: dict) -> None:
     if state.tick % DEFENSE_PLATFORM_TICKS != 0:
         return
 
@@ -275,6 +282,10 @@ def _defense_platforms_fire(state: GameState, planet_map: dict) -> None:
 
         if best_target.health <= 0:
             best_target.health = 0
+            # Track death stats for platform kills
+            victim_faction = faction_map.get(best_target.owner)
+            if victim_faction:
+                victim_faction.deaths += 1
             state.tick_events.append({
                 "type":      "ship_destroyed",
                 "ship_id":   best_target.id,
@@ -517,11 +528,31 @@ def _check_elimination(state: GameState, planet_map: dict) -> None:
         if len(alive_humans) <= 1:
             state.status = "won"
             winner_id = alive_humans[0].id if alive_humans else None
+            # Build per-player summary
+            ship_type_counts: dict[str, dict[str, int]] = {}
+            for s in state.ships:
+                if s.owner:
+                    tc = ship_type_counts.setdefault(s.owner, {})
+                    tc[s.type] = tc.get(s.type, 0) + 1
+            summary = [{
+                "faction_id": f.id,
+                "name": f.name,
+                "colour": f.colour,
+                "kills": f.kills,
+                "deaths": f.deaths,
+                "ships_alive": faction_ships.get(f.id, 0),
+                "ships_by_type": ship_type_counts.get(f.id, {}),
+                "ships_built": f.ships_built,
+                "ships_built_by_type": dict(f.ships_built_by_type),
+                "planets": faction_planets.get(f.id, 0),
+                "eliminated": f.eliminated,
+            } for f in human_factions]
             state.tick_events.append({
                 "type": "game_over",
                 "result": "win",
                 "winner_faction_id": winner_id,
                 "mode": "pvp",
+                "summary": summary,
             })
         return
 

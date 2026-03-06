@@ -276,19 +276,27 @@ class GameApp {
       e.preventDefault()
     })
 
-    // Wheel for zoom
+    // Wheel for zoom (always zoom, centered on mouse position)
     this.canvas.addEventListener('wheel', (e) => {
       e.preventDefault()
-      if (e.ctrlKey) {
-        // Pinch-to-zoom
-        const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
-        this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.zoom * zoomFactor))
-        this.applyTransform()
-      } else {
-        // Pan with wheel
-        this.panY += e.deltaY
-        this.applyTransform()
-      }
+      const zoomFactor = e.deltaY > 0 ? 0.9 : 1.1
+
+      // Zoom toward mouse position for natural feel
+      const rect = this.canvas.getBoundingClientRect()
+      const mouseX = e.clientX - rect.left
+      const mouseY = e.clientY - rect.top
+
+      // World coords at mouse before zoom
+      const worldX = (mouseX - this.panX) / this.zoom
+      const worldY = (mouseY - this.panY) / this.zoom
+
+      this.zoom = Math.max(ZOOM_MIN, Math.min(ZOOM_MAX, this.zoom * zoomFactor))
+
+      // Adjust pan so world coords at mouse position stay fixed
+      this.panX = mouseX - worldX * this.zoom
+      this.panY = mouseY - worldY * this.zoom
+
+      this.applyTransform()
     }, { passive: false })
 
     // Keyboard controls
@@ -492,9 +500,22 @@ class GameApp {
 
     if (statusEl) statusEl.textContent = status
     if (rosterEl) {
-      rosterEl.textContent = rosterPlayers.length
-        ? `Players Joined:\n${rosterPlayers.map(p => `${p.slot}. ${p.name}${p.is_host ? ' (Host)' : ''}`).join('\n')}`
-        : 'No players yet.'
+      const esc = (value) => String(value ?? '')
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+
+      rosterEl.innerHTML = rosterPlayers.length
+        ? rosterPlayers.map(p => `
+            <div class="lobby-player-row">
+              <span class="lobby-player-slot">${esc(p.slot)}</span>
+              <span class="lobby-player-name" title="${esc(p.name)}">${esc(p.name)}</span>
+              ${p.is_host ? '<span class="lobby-player-host">HOST</span>' : ''}
+            </div>
+          `).join('')
+        : '<div class="lobby-roster-empty">No players yet.</div>'
     }
     if (codeEl) codeEl.textContent = this.lobbyId ? `Lobby ${this.lobbyId}` : 'No active lobby'
     if (startBtn) startBtn.style.display = this.lobbyIsHost && this.lobbyId ? 'inline-block' : 'none'
@@ -518,6 +539,28 @@ class GameApp {
       this.audio.playSfx('click')
     } catch {
       this.renderLobbyStatus(`Copy failed. Code: ${this.lobbyId}`)
+    }
+  }
+
+  async pasteLobbyCode() {
+    const codeInput = document.getElementById('lobby-code-input')
+    if (!codeInput) return
+    try {
+      this.audio.playSfx('click')
+      if (!navigator.clipboard?.readText) {
+        this.showNotification('Clipboard read unavailable in this browser', '#ff4444')
+        return
+      }
+      const raw = await navigator.clipboard.readText()
+      const cleaned = (raw || '').replace(/\s+/g, '').toUpperCase().slice(0, 6)
+      if (!cleaned) {
+        this.showNotification('Clipboard is empty', '#ff4444')
+        return
+      }
+      codeInput.value = cleaned
+      this.renderLobbyStatus(`Pasted code: ${cleaned}`)
+    } catch {
+      this.showNotification('Clipboard permission denied', '#ff4444')
     }
   }
 
@@ -647,6 +690,10 @@ class GameApp {
 
   openDashboard(planet) {
     if (!planet) return
+
+    // Close tier dropdown to avoid overlap
+    const tierDD = document.getElementById('tier-dropdown')
+    if (tierDD) tierDD.style.display = 'none'
 
     // Track signature so applyDelta knows the current render state
     this._dashboardSig = `${planet.owner}|${planet.level}|${planet.buildings.join(',')}|${(planet.build_queue ?? []).map(q => q.name ?? q.ship_type ?? 'level_up').join(',')}`
@@ -804,7 +851,7 @@ class GameApp {
   _queueItemTotalTicks(item) {
     if (item.total_ticks) return item.total_ticks
     const BUILDING_TICKS = { extractor: 100, shipyard: 150, research_lab: 200, defense_platform: 120 }
-    const SHIP_TICKS = { fighter: 100, cruiser: 200, bomber: 180, carrier: 500, dreadnought: 800 }
+    const SHIP_TICKS = { fighter: 100, cruiser: 200, bomber: 180, carrier: 500, dreadnought: 800, mothership: 1500 }
     if (item.type === 'building') return BUILDING_TICKS[item.name] ?? 100
     if (item.type === 'ship')     return SHIP_TICKS[item.ship_type] ?? 400
     if (item.type === 'level_up') return 400  // fallback; normally total_ticks is set
@@ -1276,7 +1323,7 @@ class GameApp {
           resolved = evt.winner_faction_id === this.gameState.player_faction_id ? 'win' : 'loss'
         }
         this.audio.playSfx('game_over', 0.95)
-        this.showGameOverScreen(resolved)
+        this.showGameOverScreen(resolved, evt)
       }
     }
   }
@@ -1402,11 +1449,12 @@ class GameApp {
     this.ctx.globalAlpha = 1
   }
 
-  showGameOverScreen(result) {
+  showGameOverScreen(result, evt = {}) {
     const screen = document.getElementById('gameover-screen')
     const title = document.getElementById('gameover-title')
     const subtitle = document.getElementById('gameover-subtitle')
     const stats = document.getElementById('gameover-stats')
+    const summaryEl = document.getElementById('gameover-summary')
     if (!screen) return
 
     const { planets, ships, tick } = this.gameState ?? {}
@@ -1429,6 +1477,41 @@ class GameApp {
       subtitle.textContent = 'Your empire has fallen'
     }
     stats.textContent = `${playerPlanets} / ${totalPlanets} planets  ·  ${playerShips} ships  ·  ${mins}m ${secs}s`
+
+    // Build PvP summary table if available
+    if (summaryEl) {
+      const summary = evt.summary
+      if (summary && summary.length) {
+        const shipTypes = ['fighter','cruiser','bomber','carrier','dreadnought','mothership']
+        const shortNames = { fighter:'FT', cruiser:'CR', bomber:'BM', carrier:'CA', dreadnought:'DN', mothership:'MS' }
+        let html = '<table>'
+        html += '<tr><th>Player</th><th>Kills</th><th>Deaths</th><th>Ships Built</th><th>Types Built</th><th>Planets</th></tr>'
+        for (const p of summary) {
+          const isWinner = evt.winner_faction_id && p.faction_id === evt.winner_faction_id
+          const rowClass = isWinner ? ' class="winner"' : ''
+          const dotStyle = `background:${p.colour || '#888'}`
+          const typeParts = []
+          for (const t of shipTypes) {
+            const cnt = (p.ships_built_by_type && p.ships_built_by_type[t]) || 0
+            if (cnt > 0) typeParts.push(`${shortNames[t]}:${cnt}`)
+          }
+          const typesStr = typeParts.length ? typeParts.join(' ') : '-'
+          html += `<tr${rowClass}>`
+          html += `<td><span class="player-dot" style="${dotStyle}"></span>${p.name || p.faction_id}${isWinner ? ' ★' : ''}</td>`
+          html += `<td>${p.kills ?? 0}</td>`
+          html += `<td>${p.deaths ?? 0}</td>`
+          html += `<td>${p.ships_built ?? 0}</td>`
+          html += `<td style="font-size:10px;letter-spacing:0">${typesStr}</td>`
+          html += `<td>${p.planets ?? 0}</td>`
+          html += '</tr>'
+        }
+        html += '</table>'
+        summaryEl.innerHTML = html
+      } else {
+        summaryEl.innerHTML = ''
+      }
+    }
+
     screen.style.display = 'flex'
   }
 
@@ -2037,6 +2120,11 @@ window.toggleTierInfo = () => {
   const dd = document.getElementById('tier-dropdown')
   if (dd) {
     const opening = dd.style.display === 'none'
+    if (opening) {
+      // Close dashboard if open to avoid overlap
+      const dash = document.getElementById('dashboard')
+      if (dash && dash.style.display !== 'none') window.gameApp?.closeDashboard()
+    }
     dd.style.display = opening ? 'block' : 'none'
     if (opening) window._updateTierProgress?.()
   }
@@ -2079,14 +2167,45 @@ window._updateTierProgress = () => {
     html += `<div style="color:#4aaa66;font-size:11px;margin-top:4px;">✓ Max tier reached</div>`
   }
   el.innerHTML = html
+
+  // Fleet upgrades
+  const fuEl = document.getElementById('fleet-upgrades')
+  if (!fuEl) return
+  const fu = faction.fleet_upgrades || { speed: 0, health: 0, damage: 0 }
+  const UPGRADES = [
+    { key: 'speed',  label: 'Thruster Boost', icon: '⚡', desc: '+8% ship speed/lv', base: 200, scale: 1.8, max: 5 },
+    { key: 'health', label: 'Hull Plating',   icon: '🛡', desc: '+10% ship HP/lv',   base: 250, scale: 1.8, max: 5 },
+    { key: 'damage', label: 'Weapon Systems', icon: '🗡', desc: '+8% ship damage/lv', base: 300, scale: 1.8, max: 5 },
+  ]
+  const credits = faction.credits || 0
+  fuEl.innerHTML = UPGRADES.map(u => {
+    const lv = fu[u.key] || 0
+    const maxed = lv >= u.max
+    const cost = maxed ? 0 : Math.round(u.base * Math.pow(u.scale, lv))
+    const canBuy = !maxed && credits >= cost
+    const dots = Array.from({length: u.max}, (_, i) => `<span style="display:inline-block;width:8px;height:8px;margin:0 1px;border:1px solid #3a5060;background:${i < lv ? '#fbbf24' : '#0d1820'};"></span>`).join('')
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 6px;border:1px solid ${canBuy ? '#3a6080' : '#1a2a3a'};background:${canBuy ? 'rgba(26,50,70,0.6)' : 'rgba(10,18,28,0.6)'};">
+      <span style="font-size:14px;min-width:18px;">${u.icon}</span>
+      <div style="flex:1;">
+        <div style="color:${maxed ? '#4aaa66' : '#a5d8ff'};font-size:10px;font-weight:600;">${u.label} ${maxed ? '(MAX)' : `Lv${lv}`}</div>
+        <div style="font-size:9px;color:#4a7080;">${u.desc}</div>
+        <div style="margin-top:2px;">${dots}</div>
+      </div>
+      ${maxed ? '' : `<button onclick="window._buyFleetUpgrade('${u.key}')" style="padding:4px 8px;font-size:10px;min-width:60px;opacity:${canBuy ? 1 : 0.4};pointer-events:${canBuy ? 'auto' : 'none'};" ${canBuy ? '' : 'disabled'}>💰${cost}</button>`}
+    </div>`
+  }).join('')
 }
 window.setEnergy = (level) => window.gameApp?.setEnergy(level)
 window.stopShips = () => window.gameApp?.stopShips()
+window._buyFleetUpgrade = (type) => {
+  window.gameApp?.socket?.send({ type: 'fleet_upgrade', upgrade_type: type })
+}
 window.hostLobby = () => window.gameApp?.hostLobby()
 window.joinLobby = () => window.gameApp?.joinLobby()
 window.startLobbyMatch = () => window.gameApp?.startLobbyMatch()
 window.leaveLobby = () => window.gameApp?.leaveLobby()
 window.copyLobbyCode = () => window.gameApp?.copyLobbyCode()
+window.pasteLobbyCode = () => window.gameApp?.pasteLobbyCode()
 window.toggleSfxMute = () => window.gameApp?.toggleSfxMute()
 window.toggleMusicMute = () => window.gameApp?.toggleMusicMute()
 window.setSfxVolume = (value) => window.gameApp?.setSfxVolume(value)

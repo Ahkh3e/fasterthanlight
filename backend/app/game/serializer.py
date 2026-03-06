@@ -98,6 +98,11 @@ def _faction(f: Faction) -> dict:
         "eliminated":      f.eliminated,
         "aggression":      round(f.aggression, 2),
         "storage_capacity": round(f.storage_capacity, 1),
+        "fleet_upgrades":  dict(f.fleet_upgrades),
+        "kills":           f.kills,
+        "deaths":          f.deaths,
+        "ships_built":     f.ships_built,
+        "ships_built_by_type": dict(f.ships_built_by_type),
         # ai_timer is internal; not sent to client
     }
 
@@ -156,4 +161,5 @@ def _faction_resources(f: Faction) -> dict:
         "tech_tier":       f.tech_tier,
         "eliminated":      f.eliminated,
         "storage_capacity": round(f.storage_capacity, 1),
+        "fleet_upgrades":  dict(f.fleet_upgrades),
     }

@@ -41,6 +41,12 @@ class Faction:
     storage_capacity: float = 1000.0  # Maximum credits that can be stored
     income_history: list = field(default_factory=list)  # Last 60 income values
     expense_history: list = field(default_factory=list)  # Last 60 expense values
+    fleet_upgrades: dict = field(default_factory=lambda: {"speed": 0, "health": 0, "damage": 0})
+    # PvP stats tracking
+    kills: int = 0
+    deaths: int = 0
+    ships_built: int = 0
+    ships_built_by_type: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -66,6 +72,8 @@ class Ship:
     fire_timer: int = 0
     rogue: bool = False
     spawn_timer: int = 0  # mothership: ticks until next fighter spawn
+    speed_mult: float = 1.0   # fleet upgrade multiplier (applied at spawn)
+    damage_mult: float = 1.0  # fleet upgrade multiplier (applied at spawn)
 
 
 @dataclass
@@ -146,6 +154,11 @@ def _faction_from_dict(d: dict) -> Faction:
         storage_capacity=d.get("storage_capacity", 1000.0),
         income_history=d.get("income_history", []),
         expense_history=d.get("expense_history", []),
+        fleet_upgrades=d.get("fleet_upgrades", {"speed": 0, "health": 0, "damage": 0}),
+        kills=d.get("kills", 0),
+        deaths=d.get("deaths", 0),
+        ships_built=d.get("ships_built", 0),
+        ships_built_by_type=d.get("ships_built_by_type", {}),
     )
 
 
@@ -163,4 +176,6 @@ def _ship_from_dict(d: dict) -> Ship:
         fuel=d.get("fuel", 1.0), energy_level=d.get("energy_level", 1.0),
         fire_timer=d.get("fire_timer", 0), rogue=d.get("rogue", False),
         spawn_timer=d.get("spawn_timer", 0),
+        speed_mult=d.get("speed_mult", 1.0),
+        damage_mult=d.get("damage_mult", 1.0),
     )

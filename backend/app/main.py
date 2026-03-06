@@ -19,7 +19,7 @@ from game.physics import physics_tick
 from game.simulation import tick as simulation_tick
 from game.combat import combat_tick
 from game.ai import ai_tick
-from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, SHIP_TIER_REQ, PLAYER_START_CREDITS, PVP_PLAYER_COLOURS
+from game.config import BUILDING_COSTS, SHIP_COSTS, BUILDING_LEVEL_REQ, LEVEL_UP_COSTS, LEVEL_UP_TICKS, SHIP_BUILD_TICKS, SHIP_TIER_REQ, PLAYER_START_CREDITS, PVP_PLAYER_COLOURS, FLEET_UPGRADES
 
 logger = logging.getLogger("ftl")
 
@@ -474,6 +474,21 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
             planet.build_queue.append({"type": "level_up", "ticks_remaining": ticks, "total_ticks": ticks})
             faction.credits -= cost
 
+    elif msg_type == "fleet_upgrade":
+        upgrade_type = message.get("upgrade_type")  # "speed"|"health"|"damage"
+        spec = FLEET_UPGRADES.get(upgrade_type)
+        faction = {f.id: f for f in state.factions}.get(actor_faction_id)
+        if not spec or not faction:
+            return
+        current_level = faction.fleet_upgrades.get(upgrade_type, 0)
+        if current_level >= spec["max_level"]:
+            return
+        cost = round(spec["cost_base"] * (spec["cost_scale"] ** current_level))
+        if faction.credits < cost:
+            return
+        faction.credits -= cost
+        faction.fleet_upgrades[upgrade_type] = current_level + 1
+
     elif msg_type == "end_game":
         # Player voluntarily ends their session (forfeit / surrender)
         faction_map_local = {f.id: f for f in state.factions}
@@ -483,6 +498,33 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
 
         human_factions = [f for f in state.factions if f.archetype == "player"]
         pvp_mode = len(human_factions) > 1
+
+        def _build_pvp_summary():
+            """Build per-player stats summary for end-game screen."""
+            planet_counts = {}
+            for p in state.planets:
+                if p.owner:
+                    planet_counts[p.owner] = planet_counts.get(p.owner, 0) + 1
+            ship_counts = {}
+            ship_type_counts = {}
+            for s in state.ships:
+                if s.owner:
+                    ship_counts[s.owner] = ship_counts.get(s.owner, 0) + 1
+                    tc = ship_type_counts.setdefault(s.owner, {})
+                    tc[s.type] = tc.get(s.type, 0) + 1
+            return [{
+                "faction_id": f.id,
+                "name": f.name,
+                "colour": f.colour,
+                "kills": f.kills,
+                "deaths": f.deaths,
+                "ships_alive": ship_counts.get(f.id, 0),
+                "ships_by_type": ship_type_counts.get(f.id, {}),
+                "ships_built": f.ships_built,
+                "ships_built_by_type": dict(f.ships_built_by_type),
+                "planets": planet_counts.get(f.id, 0),
+                "eliminated": f.eliminated,
+            } for f in human_factions]
 
         # Mark the player as eliminated
         faction.eliminated = True
@@ -502,6 +544,7 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
                     "result": "win",
                     "winner_faction_id": winner_id,
                     "mode": "pvp",
+                    "summary": _build_pvp_summary(),
                 })
             else:
                 # Notify the surrendering player directly
@@ -511,6 +554,7 @@ async def handle_input(game_id: str, message: dict, actor_faction_id: str) -> No
                     "winner_faction_id": None,
                     "mode": "pvp",
                     "forfeiter": actor_faction_id,
+                    "summary": _build_pvp_summary(),
                 })
         else:
             # Solo: immediate loss

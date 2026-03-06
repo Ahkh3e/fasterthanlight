@@ -131,7 +131,7 @@ def _tick_moving(ship: Ship, planets: list[Planet], planet_map: dict,
     # Direct velocity toward target at ship speed.
     # No gravity for thrusting ships — G is strong enough near planets that it
     # would overpower thrust and throw ships off course instead of perturbing them.
-    speed   = SHIP_STATS[ship.type]["speed"] * ship.energy_level
+    speed   = SHIP_STATS[ship.type]["speed"] * ship.energy_level * getattr(ship, 'speed_mult', 1.0)
     goal_x = dx / dist
     goal_y = dy / dist
 
