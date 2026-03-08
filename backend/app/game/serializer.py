@@ -26,8 +26,29 @@ def serialize_delta(state: GameState) -> dict:
 
     Orbiting ships use a compact format (no x/y — client renders orbit locally).
     Moving/attacking/retreating ships include velocity and target data.
+
+    Dirty-orbit optimisation: stable orbiting ships (no health/target/radius change
+    since last tick) are omitted from the delta entirely — client already has them.
+    This cuts delta payload 60-80% in late-game where most ships are in orbit.
     """
-    ship_deltas = [_ship_delta(s) for s in state.ships]
+    # Snapshot from the previous tick: {ship_id: (health, target_planet, orbit_radius, target_ship)}
+    prev_snap: dict[str, tuple] = getattr(state, '_orbit_snap', {})
+    new_snap: dict[str, tuple] = {}
+
+    ship_deltas = []
+    for s in state.ships:
+        if s.state != "orbiting":
+            # Non-orbiting ships always included — position/state changes every tick
+            ship_deltas.append(_ship_delta(s))
+        else:
+            snap = (round(s.health, 1), s.target_planet, round(s.orbit_radius, 2), s.target_ship)
+            if prev_snap.get(s.id) != snap:
+                # Changed since last tick (new arrival, damage, reassignment)
+                ship_deltas.append(_ship_delta(s))
+            new_snap[s.id] = snap
+
+    # Persist snapshot for next tick — replaces prev, dead ships auto-evicted
+    state._orbit_snap = new_snap
 
     return {
         "tick":     state.tick,

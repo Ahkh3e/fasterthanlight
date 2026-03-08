@@ -34,8 +34,14 @@ def tick(state: GameState, planet_map: dict, ship_map: dict, faction_map: dict) 
         _update_sensors(state.ships, state.planets)
     _recompute_planet_ships(state.planets, state.ships, planet_map)
     _harvest_resources(state.factions, state.planets, faction_map, state.dev_mode)
-    _process_build_queues(state, planet_map, faction_map)
-    _auto_fleet(state, faction_map)
+    # Build per-faction live ship count once for all spawn calls this tick.
+    # Avoids O(n) full-scan per spawn (was O(300n) per auto-fleet interval late game).
+    live_counts: dict[str, int] = {}
+    for s in state.ships:
+        if s.health > 0:
+            live_counts[s.owner] = live_counts.get(s.owner, 0) + 1
+    _process_build_queues(state, planet_map, faction_map, live_counts)
+    _auto_fleet(state, faction_map, live_counts)
     _mothership_spawn(state, faction_map)
     _advance_tech(state.factions, state.planets)
 
@@ -215,14 +221,28 @@ def _harvest_resources(
 # ── Ship spawning helper ───────────────────────────────────────────────────────
 
 def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
-                faction=None) -> None:
+                faction=None, live_counts: dict | None = None) -> None:
     """Create a ship in orbit around planet and emit a ship_spawned event.
 
     Applies TECH_BONUSES HP multiplier based on faction.tech_tier.
+    Respects fleet cap — silently skips if faction is at or over cap.
+    Motherships bypass the cap entirely (they are a strategic purchase, not bulk spam).
+
+    live_counts: optional per-faction live ship counter maintained by the caller.
+    When provided, avoids an O(n) full-ship-list scan per spawn.
     """
     stats = SHIP_STATS.get(ship_type)
     if not stats:
         return
+
+    # Fleet cap enforcement: block new spawns while over cap (motherships exempt)
+    if faction and ship_type != "mothership":
+        if live_counts is not None:
+            current = live_counts.get(owner, 0)
+        else:
+            current = sum(1 for s in state.ships if s.owner == owner and s.health > 0)
+        if current >= faction.fleet_cap:
+            return
     tier   = faction.tech_tier if faction else 1
     bonus  = TECH_BONUSES.get(tier, TECH_BONUSES[1])
     # Apply fleet upgrade bonuses on top of tech bonuses
@@ -253,6 +273,9 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
     )
     state.ships.append(new_ship)
     planet.ships.append(new_ship.id)
+    # Keep live_counts accurate so subsequent spawns this tick see the right count
+    if live_counts is not None:
+        live_counts[owner] = live_counts.get(owner, 0) + 1
     # Track build stats
     if faction:
         faction.ships_built += 1
@@ -285,7 +308,8 @@ def _spawn_ship(state: GameState, planet: Planet, ship_type: str, owner: str,
 
 # ── Build queues ───────────────────────────────────────────────────────────────
 
-def _process_build_queues(state: GameState, planet_map: dict, faction_map: dict) -> None:
+def _process_build_queues(state: GameState, planet_map: dict, faction_map: dict,
+                          live_counts: dict | None = None) -> None:
     """Tick down build queues; complete buildings and spawn ships when done."""
     dev_mode = bool(getattr(state, "dev_mode", False))
     for planet in state.planets:
@@ -310,7 +334,8 @@ def _process_build_queues(state: GameState, planet_map: dict, faction_map: dict)
                 ship_type = item.get("ship_type", "fighter")
                 if planet.owner is not None and SHIP_STATS.get(ship_type):
                     faction = faction_map.get(planet.owner)
-                    _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
+                    _spawn_ship(state, planet, ship_type, planet.owner,
+                                faction=faction, live_counts=live_counts)
 
             elif item["type"] == "level_up":
                 if planet.level < 5:
@@ -322,7 +347,8 @@ def _process_build_queues(state: GameState, planet_map: dict, faction_map: dict)
 
 # ── Auto-fleet generation ──────────────────────────────────────────────────────
 
-def _auto_fleet(state: GameState, faction_map: dict) -> None:
+def _auto_fleet(state: GameState, faction_map: dict,
+                live_counts: dict | None = None) -> None:
     """Each owned planet spawns a burst of ships every AUTO_FLEET_INTERVAL ticks.
 
     Burst size scales with planet level:  level 1 → 1,  level 2 → 2, etc.
@@ -347,7 +373,8 @@ def _auto_fleet(state: GameState, faction_map: dict) -> None:
         ship_type = "fighter"  # auto-fleet always spawns basic fighters
 
         for _ in range(count):
-            _spawn_ship(state, planet, ship_type, planet.owner, faction=faction)
+            _spawn_ship(state, planet, ship_type, planet.owner,
+                        faction=faction, live_counts=live_counts)
 
 
 # ── Mothership fighter spawning ─────────────────────────────────────────────

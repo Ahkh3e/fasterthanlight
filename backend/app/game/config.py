@@ -179,7 +179,7 @@ MOTHERSHIP_UPGRADES = {
 CONQUEST_RADIUS         = 150   # must be < MIN_PLANET_SEPARATION so ships must travel
 CONQUEST_THRESHOLD      = 0.55
 CONQUEST_CHECKS_NEEDED  = 5     # consecutive checks needed (was 3)
-DOMINANCE_CHECK_INTERVAL = 20   # ticks between checks (was 10)
+DOMINANCE_CHECK_INTERVAL = 20   # ticks between conquest dominance checks
 
 # ── Win/Loss ──────────────────────────────────────────────────────────────────
 WIN_PLANET_FRACTION = 0.80

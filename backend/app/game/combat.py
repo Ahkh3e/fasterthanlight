@@ -33,7 +33,7 @@ DEFENSE_PLATFORM_DAMAGE = 15
 DEFENSE_PLATFORM_RANGE  = 300
 ORBITAL_CANNON_DAMAGE   = 30
 ORBITAL_CANNON_RANGE    = 500
-DEFENSE_PLATFORM_TICKS  = 20   # ticks between platform shots
+DEFENSE_PLATFORM_TICKS  = 30   # ticks between platform shots (raised from 20 — reduces O(planets×ships) scan frequency)
 
 # Spatial grid for O(n) engagement detection instead of O(n²)
 ENGAGE_GRID_SIZE = 500.0          # cell size ≥ largest attack range (dreadnought=350)
@@ -349,39 +349,83 @@ def _handle_retreats(ships: list[Ship], planets: list[Planet]) -> None:
         ship.energy_level = 1.0   # retreat at max thrust
 
 
+# ── Planet spatial grid (built once, cached on state) ─────────────────────────
+
+_CONQUEST_GRID_SIZE = 200.0  # slightly larger than CONQUEST_RADIUS=150
+
+
+def _get_planet_grid(state: GameState) -> dict:
+    """Return a spatial grid of planets, building and caching it on first call.
+
+    Planets never move, so this is built once per GameState instance.
+    Grid maps (gx, gy) → list[Planet] for O(1) neighbourhood lookup.
+    """
+    grid = getattr(state, '_planet_grid', None)
+    if grid is None:
+        inv = 1.0 / _CONQUEST_GRID_SIZE
+        grid = {}
+        for p in state.planets:
+            key = (int(p.x * inv), int(p.y * inv))
+            grid.setdefault(key, []).append(p)
+        state._planet_grid = grid
+    return grid
+
+
 # ── Conquest ──────────────────────────────────────────────────────────────────
 
 def _check_conquest(
     state: GameState, planet_map: dict, faction_map: dict
 ) -> None:
+    """Check for planet conquests.
+
+    Flipped loop: iterate ships once, look up nearby planets via spatial grid.
+    Each ship checks ~9 grid cells × ~1 planet each instead of all 120 planets.
+    Only planets with actual ship presence are evaluated — uncontested planets
+    are never touched, resetting their conquest_checks if they go quiet.
+    """
     conquest_r_sq = CONQUEST_RADIUS * CONQUEST_RADIUS
-    all_ships = state.ships
+    inv = 1.0 / _CONQUEST_GRID_SIZE
+    planet_grid = _get_planet_grid(state)
     _stats = SHIP_STATS
 
+    # Accumulate per-planet faction power from ships (single O(n) pass)
+    planet_faction_power: dict[str, dict[str, float]] = {}
+
+    for ship in state.ships:
+        if ship.owner == "neutral":
+            continue
+        hp_ratio = ship.health / ship.max_health if ship.max_health > 0 else 0.0
+        power = hp_ratio * _stats.get(ship.type, {}).get("damage", 0)
+        if power <= 0:
+            continue
+
+        cx = int(ship.x * inv)
+        cy = int(ship.y * inv)
+
+        for gx in (cx - 1, cx, cx + 1):
+            for gy in (cy - 1, cy, cy + 1):
+                for planet in planet_grid.get((gx, gy), ()):
+                    # Orbiting ships only contest the planet they're assigned to
+                    if ship.state == "orbiting" and ship.target_planet and ship.target_planet != planet.id:
+                        continue
+                    dx = ship.x - planet.x
+                    dy = ship.y - planet.y
+                    if dx * dx + dy * dy >= conquest_r_sq:
+                        continue
+                    pf = planet_faction_power.setdefault(planet.id, {})
+                    pf[ship.owner] = pf.get(ship.owner, 0.0) + power
+
+    # Evaluate only contested planets; clear checks on uncontested ones
+    contested_ids = set(planet_faction_power)
     for planet in state.planets:
-        px, py = planet.x, planet.y
-        planet_id = planet.id
-        planet_owner = planet.owner
+        if planet.id not in contested_ids:
+            if planet.conquest_checks > 0:
+                planet.conquest_checks = 0
+            continue
 
-        # Single pass: accumulate per-faction power near this planet
-        faction_power: dict[str, float] = {}
-        for ship in all_ships:
-            if ship.owner == "neutral":
-                continue
-            if ship.state == "orbiting" and ship.target_planet and ship.target_planet != planet_id:
-                continue
-            dx = ship.x - px
-            dy = ship.y - py
-            if dx * dx + dy * dy >= conquest_r_sq:
-                continue
-            hp_ratio = ship.health / ship.max_health if ship.max_health > 0 else 0.0
-            power = hp_ratio * _stats.get(ship.type, {}).get("damage", 0)
-            faction_power[ship.owner] = faction_power.get(ship.owner, 0.0) + power
+        faction_power = planet_faction_power[planet.id]
+        defense_power = faction_power.pop(planet.owner, 0.0)
 
-        # Separate defense (planet owner) from attackers
-        defense_power = faction_power.pop(planet_owner, 0.0)
-
-        # Check if any attackers remain
         if not faction_power:
             if planet.conquest_checks > 0:
                 planet.conquest_checks = 0
@@ -512,61 +556,22 @@ def _remove_destroyed(state: GameState, ship_map: dict) -> None:
 
 
 def _enforce_fleet_cap(state: GameState, faction_map: dict) -> None:
-    """Destroy excess ships when a faction exceeds its planet-based fleet cap.
+    """Update each faction's fleet_cap based on planets owned.
 
     Cap = max(FLEET_CAP_MIN, planets_owned * FLEET_CAP_PER_PLANET).
-    Motherships are excluded from the count and are never auto-destroyed.
-    When over cap, the cheapest ship types are culled first (fighters before
-    cruisers before dreadnoughts, etc.); HP breaks ties within the same type.
+    Ships are never auto-destroyed — factions keep their fleet when losing
+    planets, they just cannot spawn new ships while over cap.
     """
-    # Count planets per faction
     planet_counts: dict[str, int] = {}
     for planet in state.planets:
         if planet.owner:
             planet_counts[planet.owner] = planet_counts.get(planet.owner, 0) + 1
 
-    # Group live non-mothership ships by owner
-    regular_ships: dict[str, list] = {}
-    mothership_counts: dict[str, int] = {}
-    for ship in state.ships:
-        if ship.health <= 0:
-            continue
-        if ship.type == "mothership":
-            mothership_counts[ship.owner] = mothership_counts.get(ship.owner, 0) + 1
-        else:
-            regular_ships.setdefault(ship.owner, []).append(ship)
-
     for faction in state.factions:
         if faction.eliminated:
             continue
         planets_owned = planet_counts.get(faction.id, 0)
-        cap = max(FLEET_CAP_MIN, planets_owned * FLEET_CAP_PER_PLANET)
-        faction.fleet_cap = cap
-
-        ms_count = mothership_counts.get(faction.id, 0)
-        regulars = regular_ships.get(faction.id, [])
-        total = len(regulars) + ms_count
-        if total <= cap:
-            continue
-
-        # How many regular ships to cull (motherships never culled)
-        excess = total - cap
-        excess = min(excess, len(regulars))  # can't cull more than we have
-        if excess <= 0:
-            continue
-
-        # Sort ascending by type value then HP — cheapest/weakest ships culled first
-        culled = sorted(regulars, key=lambda s: (SHIP_COSTS.get(s.type, 0), s.health))[:excess]
-        for ship in culled:
-            victim_faction = faction_map.get(ship.owner)
-            if victim_faction:
-                victim_faction.deaths += 1
-            ship.health = 0
-            state.tick_events.append({
-                "type":      "ship_destroyed",
-                "ship_id":   ship.id,
-                "killer_id": "fleet_cap",
-            })
+        faction.fleet_cap = max(FLEET_CAP_MIN, planets_owned * FLEET_CAP_PER_PLANET)
 
 
 def _check_elimination(state: GameState, planet_map: dict) -> None:

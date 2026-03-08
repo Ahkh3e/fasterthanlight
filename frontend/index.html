@@ -1953,6 +1953,193 @@
             font-family: var(--h-font) !important;
         }
     </style>
+
+    <style>
+        /* ═══════════════════════════════════════════════════════════
+           AMBER UNIFICATION — Align HUD to Phosphor Terminal theme
+           Overrides all blue/teal HUD colors to warm amber palette
+           matching the start screen aesthetic.
+           ══════════════════════════════════════════════════════════ */
+
+        :root {
+            --h-font:       'Share Tech Mono', 'Courier New', monospace;
+            --h-cr:         #D88020;
+            --h-cr-pos:     #70A840;
+            --h-cr-neg:     #D04020;
+            --h-fleet:      #C06828;
+            --h-fleet-warn: #E08818;
+            --h-fleet-crit: #D03020;
+            --h-rp:         #B88818;
+            --h-tier:       #FFB800;
+            --h-green:      #70A840;
+            --h-red:        #D03020;
+            --h-text:       #C09050;
+            --h-label:      #6A4010;
+            --h-ghost:      #2C1808;
+            --h-border:     #2A1A06;
+            --h-border-hi:  #4A2E0C;
+            --h-bg:         rgba(7, 4, 1, 0.96);
+            --h-bg-hi:      rgba(10, 6, 2, 0.99);
+        }
+
+        body {
+            background:
+                radial-gradient(1300px 700px at 55% -20%, rgba(40, 25, 5, 0.5) 0%, transparent 58%),
+                radial-gradient(900px 420px at 20% 120%, rgba(30, 18, 3, 0.45) 0%, transparent 62%),
+                #070401 !important;
+        }
+
+        .hud-panel:hover {
+            border-top-color: #5A3810 !important;
+        }
+
+        /* ── Dashboard overlay ── */
+        .dashboard-overlay {
+            background: #070401 !important;
+            border: 3px solid #4A2C00 !important;
+            box-shadow:
+                0 0 0 3px #0A0601,
+                0 0 0 6px #1E0E00,
+                0 18px 56px rgba(0, 0, 0, 0.55),
+                inset 0 0 0 2px rgba(200, 120, 0, 0.08) !important;
+            color: #A07040 !important;
+        }
+
+        .dashboard-overlay::before {
+            background: repeating-linear-gradient(
+                to bottom,
+                rgba(160, 90, 0, 0.05) 0,
+                rgba(160, 90, 0, 0.05) 1px,
+                transparent 1px,
+                transparent 3px
+            ) !important;
+        }
+
+        .dash-head { border-bottom-color: #2A1800 !important; }
+        .dash-corner { border-color: #C87800 !important; }
+
+        .dash-title {
+            color: #C87800 !important;
+            text-shadow: 0 0 8px rgba(200, 120, 0, 0.20) !important;
+        }
+
+        .dash-owner, .dash-subhead { color: #5A3408 !important; }
+
+        .dash-stats {
+            border-color: #1E0E00 !important;
+            background: rgba(7, 3, 0, 0.9) !important;
+        }
+
+        .dash-stat {
+            color: #6A4010 !important;
+            border-color: #1A0800 !important;
+            background: rgba(4, 2, 0, 0.7) !important;
+        }
+
+        .dash-stat .v { color: #C09050 !important; }
+
+        .dash-section-title { color: #C87800 !important; }
+
+        .dash-section-body {
+            color: #9A6820 !important;
+            border-color: #1A0800 !important;
+            background: rgba(6, 3, 0, 0.75) !important;
+        }
+
+        .dashboard-overlay button {
+            background: #0A0601 !important;
+            color: #8A5420 !important;
+            border-color: #2A1800 !important;
+        }
+
+        .dashboard-overlay button:hover {
+            background: rgba(160, 90, 0, 0.1) !important;
+            box-shadow: inset 0 -2px 0 rgba(0,0,0,0.35), 0 0 0 1px rgba(200,120,0,0.22) !important;
+        }
+
+        .dashboard-close {
+            color: #5A3408 !important;
+            border-color: #2A1800 !important;
+            background: rgba(10, 6, 1, 0.9) !important;
+        }
+
+        .dashboard-close:hover {
+            color: #C87800 !important;
+            border-color: #7A4800 !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.enabled {
+            background: linear-gradient(180deg, #1E1004, #160C02) !important;
+            color: #C09050 !important;
+            border-color: #3A2008 !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.enabled:hover {
+            background: linear-gradient(180deg, #261408, #1A0E03) !important;
+            border-color: #4A2C0C !important;
+            box-shadow: 0 0 0 1px rgba(200,120,0,0.2) !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.disabled {
+            background: rgba(6, 3, 0, 0.85) !important;
+            color: #2C1604 !important;
+            border-color: #120800 !important;
+        }
+
+        #dashboard-construction .dash-btn-title { color: #D0A060 !important; }
+        #dashboard-construction .dash-pixel-btn.disabled .dash-btn-title { color: #2C1604 !important; }
+        #dashboard-construction .dash-btn-cost  { color: #A07030 !important; }
+        #dashboard-construction .dash-btn-desc  { color: #6A4010 !important; }
+        #dashboard-construction .dash-btn-hint  { color: #A04820 !important; }
+
+        /* ── Tier dropdown ── */
+        #tier-dropdown {
+            background: rgba(7, 4, 1, 0.97) !important;
+            border-color: #2A1800 !important;
+            border-top-color: #4A2E0C !important;
+            color: #A07030 !important;
+        }
+
+        /* ── Game-over screen ── */
+        #gameover-screen { background: rgba(7, 4, 1, 0.97) !important; }
+
+        #gameover-title {
+            color: #C87800 !important;
+            text-shadow: 0 0 14px rgba(200, 120, 0, 0.22) !important;
+            font-family: 'Russo One', 'Share Tech Mono', 'Courier New', monospace !important;
+        }
+
+        #gameover-subtitle { color: #3A2000 !important; }
+        #gameover-stats    { color: #4A2800 !important; }
+
+        #gameover-summary th {
+            color: #C87800 !important;
+            border-bottom-color: rgba(200, 120, 0, 0.18) !important;
+        }
+
+        #gameover-summary td {
+            color: #6A4010 !important;
+            border-bottom-color: rgba(74, 44, 0, 0.12) !important;
+        }
+
+        #gameover-summary tr.winner td { color: #C87800 !important; }
+
+        /* ── Faction status ── */
+        .faction-pct        { color: #B07820 !important; }
+        .faction-fleet      { color: #3A7050 !important; }
+        .faction-bar-track  { background: #120800 !important; }
+
+        /* ── System toggles ── */
+        .hud-sys-toggle { border-color: #1E1000 !important; color: #3A2008 !important; }
+        .hud-sys-toggle:hover { color: #8A5420 !important; border-color: #2A1800 !important; }
+
+        /* ── Mothership follower chip ── */
+        .mothership-follower-chip {
+            border-color: #2A1800 !important;
+            background: rgba(7, 3, 0, 0.85) !important;
+            color: #8A5820 !important;
+        }
+    </style>
 </head>
 <body>
     <!-- Game Container - Only this moves and zooms -->
@@ -1978,35 +2165,38 @@
         </div>
 
         <!-- Tier Requirements Dropdown -->
-        <div id="tier-dropdown" style="position:fixed;bottom:180px;left:20px;min-width:280px;max-height:calc(100vh - 220px);overflow-y:auto;background:rgba(10,18,28,0.96);border:1px solid #1a3a50;padding:14px 16px;z-index:1100;display:none;font-family:'Courier New',Consolas,monospace;border-radius:0;pointer-events:auto;">
-            <div style="color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px;margin-bottom:10px;border-bottom:1px solid #1a3a50;padding-bottom:6px;">TIER PROGRESS</div>
-            <div id="tier-progress" style="margin-bottom:12px;border-bottom:1px solid #1a3a50;padding-bottom:10px;"></div>
-            <div style="color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px;margin-bottom:10px;border-bottom:1px solid #1a3a50;padding-bottom:6px;">TIER REQUIREMENTS</div>
-            <div style="color:#3a8880;font-size:10px;letter-spacing:1px;margin-bottom:8px;">Research Points needed</div>
-            <div style="color:#7ae7ff;font-size:11px;margin-bottom:12px;">
-                <span style="color:#fbbf24;">T1</span> Start &nbsp;·&nbsp;
-                <span style="color:#fbbf24;">T2</span> 500 RP + 5 planets Lv2 &nbsp;·&nbsp;
-                <span style="color:#fbbf24;">T3</span> 2000 RP + 10 planets Lv3
+        <div id="tier-dropdown" style="position:fixed;bottom:180px;left:20px;min-width:280px;max-height:calc(100vh - 220px);overflow-y:auto;background:rgba(7,4,1,0.97);border:1px solid #2A1800;padding:14px 16px;z-index:1100;display:none;font-family:'Share Tech Mono','Courier New',monospace;border-radius:0;pointer-events:auto;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;border-bottom:1px solid #2A1800;padding-bottom:6px;">
+                <span style="color:#C87800;font-size:12px;font-weight:700;letter-spacing:2px;">TIER PROGRESS</span>
+                <span onclick="toggleTierInfo()" style="color:#5A3408;font-size:14px;cursor:pointer;padding:0 4px;line-height:1;" title="Close (Esc)">×</span>
             </div>
-            <div style="color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:1px;margin-bottom:4px;">Ships</div>
-            <div style="color:#a5d8ff;font-size:10px;line-height:1.8;margin-bottom:10px;">
-                <span style="color:#4aaa66;">T1</span> Fighter · 50 Cr<br>
-                <span style="color:#4aaa66;">T2</span> Cruiser · 150 Cr<br>
-                <span style="color:#4aaa66;">T2</span> Bomber · 120 Cr<br>
-                <span style="color:#4aaa66;">T3</span> Carrier · 400 Cr<br>
-                <span style="color:#4aaa66;">T3</span> Dreadnought · 800 Cr<br>
-                <span style="color:#4aaa66;">T3</span> Mothership · 2500 Cr
+            <div id="tier-progress" style="margin-bottom:12px;border-bottom:1px solid #1A0E00;padding-bottom:10px;"></div>
+            <div style="color:#C87800;font-size:12px;font-weight:700;letter-spacing:2px;margin-bottom:10px;border-bottom:1px solid #2A1800;padding-bottom:6px;">TIER REQUIREMENTS</div>
+            <div style="color:#3A2000;font-size:10px;letter-spacing:1px;margin-bottom:8px;">Research Points needed</div>
+            <div style="color:#8A5820;font-size:11px;margin-bottom:12px;">
+                <span style="color:#C87800;">T1</span> Start &nbsp;·&nbsp;
+                <span style="color:#C87800;">T2</span> 500 RP + 5 planets Lv2 &nbsp;·&nbsp;
+                <span style="color:#C87800;">T3</span> 2000 RP + 10 planets Lv3
             </div>
-            <div style="color:#fbbf24;font-size:11px;font-weight:600;letter-spacing:1px;margin-bottom:4px;">Buildings</div>
-            <div style="color:#a5d8ff;font-size:10px;line-height:1.8;">
-                <span style="color:#4aaa66;">L1</span> Extractor · 100 Cr<br>
-                <span style="color:#4aaa66;">L1</span> Shipyard · 200 Cr<br>
-                <span style="color:#4aaa66;">L1</span> Research Lab · 150 Cr<br>
-                <span style="color:#4aaa66;">L1</span> Defense Platform · 250 Cr<br>
-                <span style="color:#4aaa66;">L2</span> Trade Hub · 350 Cr<br>
-                <span style="color:#4aaa66;">L3</span> Orbital Cannon · 450 Cr
+            <div style="color:#C87800;font-size:11px;font-weight:600;letter-spacing:1px;margin-bottom:4px;">Ships</div>
+            <div style="color:#8A5820;font-size:10px;line-height:1.8;margin-bottom:10px;">
+                <span style="color:#6A9030;">T1</span> Fighter · 50 Cr<br>
+                <span style="color:#6A9030;">T2</span> Cruiser · 150 Cr<br>
+                <span style="color:#6A9030;">T2</span> Bomber · 120 Cr<br>
+                <span style="color:#6A9030;">T3</span> Carrier · 400 Cr<br>
+                <span style="color:#6A9030;">T3</span> Dreadnought · 800 Cr<br>
+                <span style="color:#6A9030;">T3</span> Mothership · 2500 Cr
             </div>
-            <div style="color:#fbbf24;font-size:12px;font-weight:700;letter-spacing:2px;margin-top:12px;margin-bottom:8px;border-top:1px solid #1a3a50;padding-top:8px;">FLEET UPGRADES</div>
+            <div style="color:#C87800;font-size:11px;font-weight:600;letter-spacing:1px;margin-bottom:4px;">Buildings</div>
+            <div style="color:#8A5820;font-size:10px;line-height:1.8;">
+                <span style="color:#6A9030;">L1</span> Extractor · 100 Cr<br>
+                <span style="color:#6A9030;">L1</span> Shipyard · 200 Cr<br>
+                <span style="color:#6A9030;">L1</span> Research Lab · 150 Cr<br>
+                <span style="color:#6A9030;">L1</span> Defense Platform · 250 Cr<br>
+                <span style="color:#6A9030;">L2</span> Trade Hub · 350 Cr<br>
+                <span style="color:#6A9030;">L3</span> Orbital Cannon · 450 Cr
+            </div>
+            <div style="color:#C87800;font-size:12px;font-weight:700;letter-spacing:2px;margin-top:12px;margin-bottom:8px;border-top:1px solid #2A1800;padding-top:8px;">FLEET UPGRADES</div>
             <div id="fleet-upgrades" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
 
@@ -2151,14 +2341,14 @@
     </div>
 
     <!-- Win / Loss Screen -->
-    <div id="gameover-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(11,13,18,0.97);z-index:8500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:0;">
+    <div id="gameover-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(7,4,1,0.97);z-index:8500;display:none;flex-direction:column;align-items:center;justify-content:center;gap:0;">
         <div id="gameover-title" style="font-size:72px;font-weight:900;letter-spacing:10px;margin-bottom:8px;">VICTORY</div>
-        <div id="gameover-subtitle" style="font-size:14px;color:#3a6070;letter-spacing:4px;margin-bottom:10px;text-transform:uppercase;">Galaxy Conquered</div>
-        <div id="gameover-stats" style="font-size:12px;color:#4a8090;letter-spacing:2px;margin-bottom:16px;"></div>
+        <div id="gameover-subtitle" style="font-size:14px;color:#3A2000;letter-spacing:4px;margin-bottom:10px;text-transform:uppercase;">Galaxy Conquered</div>
+        <div id="gameover-stats" style="font-size:12px;color:#4A2800;letter-spacing:2px;margin-bottom:16px;"></div>
         <div id="gameover-summary"></div>
         <div style="display:flex;gap:12px;">
             <button id="gameover-new" onclick="window.gameApp?.launchNewGame()" style="width:200px;padding:14px 0;font-size:14px;letter-spacing:2px;">NEW GAME</button>
-            <button onclick="window.gameApp?.goToMenu()" style="width:200px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;box-shadow:none;">MENU</button>
+            <button onclick="window.gameApp?.goToMenu()" style="width:200px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0A0601;color:#3A2000;box-shadow:none;">MENU</button>
         </div>
     </div>
 

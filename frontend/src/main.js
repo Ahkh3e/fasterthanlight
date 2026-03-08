@@ -3077,10 +3077,16 @@ window.toggleTierInfo = () => {
     if (opening) window._updateTierProgress?.()
   }
 }
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') {
+    const dd = document.getElementById('tier-dropdown')
+    if (dd && dd.style.display !== 'none') dd.style.display = 'none'
+  }
+})
 window._updateTierProgress = () => {
   const el = document.getElementById('tier-progress')
   const gs = window.gameApp?.gameState
-  if (!el || !gs) { if (el) el.innerHTML = '<span style="color:#4a7080;font-size:10px;">No game data</span>'; return }
+  if (!el || !gs) { if (el) el.innerHTML = '<span style="color:#3A2000;font-size:10px;">No game data</span>'; return }
   const pid = gs.player_faction_id
   const faction = gs.factions?.find(f => f.id === pid)
   if (!faction) return
@@ -3098,21 +3104,21 @@ window._updateTierProgress = () => {
   const bar = (val, max, color) => {
     const pct = Math.min(100, Math.round(val / max * 100))
     return `<div style="display:flex;align-items:center;gap:6px;margin:2px 0;">`
-      + `<div style="flex:1;height:6px;background:#0d1820;border-radius:3px;">`
+      + `<div style="flex:1;height:6px;background:#150C04;border-radius:3px;">`
       + `<div style="width:${pct}%;height:100%;background:${color};border-radius:3px;"></div></div>`
-      + `<span style="min-width:40px;text-align:right;font-size:10px;color:#7ae7ff;">${val}/${max}</span></div>`
+      + `<span style="min-width:40px;text-align:right;font-size:10px;color:#A07030;">${val}/${max}</span></div>`
   }
-  let html = `<div style="color:#7ae7ff;font-size:12px;margin-bottom:6px;">Current: <span style="color:#fbbf24;font-weight:700;">Tier ${tier}</span> &nbsp;·&nbsp; RP: <span style="color:#a78bfa;">${rp}</span> &nbsp;·&nbsp; Planets: <span style="color:#00e8cc;">${owned}</span></div>`
+  let html = `<div style="color:#A07030;font-size:12px;margin-bottom:6px;">Current: <span style="color:#C87800;font-weight:700;">Tier ${tier}</span> &nbsp;·&nbsp; RP: <span style="color:#B88818;">${rp}</span> &nbsp;·&nbsp; Planets: <span style="color:#C06828;">${owned}</span></div>`
   if (tier < 2) {
-    html += `<div style="color:#e2e8f0;font-size:11px;font-weight:600;margin:6px 0 2px;">→ Tier 2</div>`
-    html += `<span style="color:#a5d8ff;font-size:10px;">RP</span>` + bar(rp, 500, '#a78bfa')
-    html += `<span style="color:#a5d8ff;font-size:10px;">Lv2+ Planets</span>` + bar(lv2, 5, '#2ecc71')
+    html += `<div style="color:#C08040;font-size:11px;font-weight:600;margin:6px 0 2px;">→ Tier 2</div>`
+    html += `<span style="color:#7A4E18;font-size:10px;">RP</span>` + bar(rp, 500, '#B08018')
+    html += `<span style="color:#7A4E18;font-size:10px;">Lv2+ Planets</span>` + bar(lv2, 5, '#60A028')
   } else if (tier < 3) {
-    html += `<div style="color:#e2e8f0;font-size:11px;font-weight:600;margin:6px 0 2px;">→ Tier 3</div>`
-    html += `<span style="color:#a5d8ff;font-size:10px;">RP</span>` + bar(rp, 2000, '#a78bfa')
-    html += `<span style="color:#a5d8ff;font-size:10px;">Lv3+ Planets</span>` + bar(lv3, 10, '#2ecc71')
+    html += `<div style="color:#C08040;font-size:11px;font-weight:600;margin:6px 0 2px;">→ Tier 3</div>`
+    html += `<span style="color:#7A4E18;font-size:10px;">RP</span>` + bar(rp, 2000, '#B08018')
+    html += `<span style="color:#7A4E18;font-size:10px;">Lv3+ Planets</span>` + bar(lv3, 10, '#60A028')
   } else {
-    html += `<div style="color:#4aaa66;font-size:11px;margin-top:4px;">✓ Max tier reached</div>`
+    html += `<div style="color:#70A040;font-size:11px;margin-top:4px;">✓ Max tier reached</div>`
   }
   el.innerHTML = html
 
@@ -3131,12 +3137,12 @@ window._updateTierProgress = () => {
     const maxed = lv >= u.max
     const cost = maxed ? 0 : Math.round(u.base * Math.pow(u.scale, lv))
     const canBuy = !maxed && credits >= cost
-    const dots = Array.from({length: u.max}, (_, i) => `<span style="display:inline-block;width:8px;height:8px;margin:0 1px;border:1px solid #3a5060;background:${i < lv ? '#fbbf24' : '#0d1820'};"></span>`).join('')
-    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 6px;border:1px solid ${canBuy ? '#3a6080' : '#1a2a3a'};background:${canBuy ? 'rgba(26,50,70,0.6)' : 'rgba(10,18,28,0.6)'};">
+    const dots = Array.from({length: u.max}, (_, i) => `<span style="display:inline-block;width:8px;height:8px;margin:0 1px;border:1px solid #2A1800;background:${i < lv ? '#C87800' : '#120A02'};"></span>`).join('')
+    return `<div style="display:flex;align-items:center;gap:8px;padding:5px 6px;border:1px solid ${canBuy ? '#2A1800' : '#1A0E00'};background:${canBuy ? 'rgba(26,14,4,0.6)' : 'rgba(10,6,2,0.6)'};">
       <span style="font-size:14px;min-width:18px;">${u.icon}</span>
       <div style="flex:1;">
-        <div style="color:${maxed ? '#4aaa66' : '#a5d8ff'};font-size:10px;font-weight:600;">${u.label} ${maxed ? '(MAX)' : `Lv${lv}`}</div>
-        <div style="font-size:9px;color:#4a7080;">${u.desc}</div>
+        <div style="color:${maxed ? '#70A040' : '#C08040'};font-size:10px;font-weight:600;">${u.label} ${maxed ? '(MAX)' : `Lv${lv}`}</div>
+        <div style="font-size:9px;color:#3A2000;">${u.desc}</div>
         <div style="margin-top:2px;">${dots}</div>
       </div>
       ${maxed ? '' : `<button data-fleet-upgrade="${u.key}" style="padding:4px 8px;font-size:10px;min-width:60px;opacity:${canBuy ? 1 : 0.4};pointer-events:${canBuy ? 'auto' : 'none'};" ${canBuy ? '' : 'disabled'}>💰${cost}</button>`}
