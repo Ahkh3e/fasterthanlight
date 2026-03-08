@@ -17,10 +17,11 @@ Flow per tick:
 import math
 
 from game.config import (
-    SHIP_ATTACK_RANGE, SHIP_STATS,
+    SHIP_ATTACK_RANGE, SHIP_STATS, SHIP_COSTS,
     CONQUEST_RADIUS, CONQUEST_THRESHOLD, CONQUEST_CHECKS_NEEDED,
     DOMINANCE_CHECK_INTERVAL, ORBIT_OFFSET, GALAXY_WIDTH, GALAXY_HEIGHT,
     LEVEL_DEFENSE_BONUS, WIN_PLANET_FRACTION,
+    FLEET_CAP_PER_PLANET, FLEET_CAP_MIN,
 )
 from game.state import GameState, Ship, Planet
 
@@ -54,6 +55,7 @@ def combat_tick(
 
     _remove_destroyed(state, ship_map)
     _check_elimination(state, planet_map)
+    _enforce_fleet_cap(state, faction_map)
 
     if state.tick % 500 == 0:
         for f in state.factions:
@@ -507,6 +509,64 @@ def _remove_destroyed(state: GameState, ship_map: dict) -> None:
 
     for planet in state.planets:
         planet.ships = [sid for sid in planet.ships if sid not in dead_ids]
+
+
+def _enforce_fleet_cap(state: GameState, faction_map: dict) -> None:
+    """Destroy excess ships when a faction exceeds its planet-based fleet cap.
+
+    Cap = max(FLEET_CAP_MIN, planets_owned * FLEET_CAP_PER_PLANET).
+    Motherships are excluded from the count and are never auto-destroyed.
+    When over cap, the cheapest ship types are culled first (fighters before
+    cruisers before dreadnoughts, etc.); HP breaks ties within the same type.
+    """
+    # Count planets per faction
+    planet_counts: dict[str, int] = {}
+    for planet in state.planets:
+        if planet.owner:
+            planet_counts[planet.owner] = planet_counts.get(planet.owner, 0) + 1
+
+    # Group live non-mothership ships by owner
+    regular_ships: dict[str, list] = {}
+    mothership_counts: dict[str, int] = {}
+    for ship in state.ships:
+        if ship.health <= 0:
+            continue
+        if ship.type == "mothership":
+            mothership_counts[ship.owner] = mothership_counts.get(ship.owner, 0) + 1
+        else:
+            regular_ships.setdefault(ship.owner, []).append(ship)
+
+    for faction in state.factions:
+        if faction.eliminated:
+            continue
+        planets_owned = planet_counts.get(faction.id, 0)
+        cap = max(FLEET_CAP_MIN, planets_owned * FLEET_CAP_PER_PLANET)
+        faction.fleet_cap = cap
+
+        ms_count = mothership_counts.get(faction.id, 0)
+        regulars = regular_ships.get(faction.id, [])
+        total = len(regulars) + ms_count
+        if total <= cap:
+            continue
+
+        # How many regular ships to cull (motherships never culled)
+        excess = total - cap
+        excess = min(excess, len(regulars))  # can't cull more than we have
+        if excess <= 0:
+            continue
+
+        # Sort ascending by type value then HP — cheapest/weakest ships culled first
+        culled = sorted(regulars, key=lambda s: (SHIP_COSTS.get(s.type, 0), s.health))[:excess]
+        for ship in culled:
+            victim_faction = faction_map.get(ship.owner)
+            if victim_faction:
+                victim_faction.deaths += 1
+            ship.health = 0
+            state.tick_events.append({
+                "type":      "ship_destroyed",
+                "ship_id":   ship.id,
+                "killer_id": "fleet_cap",
+            })
 
 
 def _check_elimination(state: GameState, planet_map: dict) -> None:

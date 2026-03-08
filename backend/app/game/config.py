@@ -26,10 +26,10 @@ FACTION_PREFIX = [
 FACTION_NAME = [
     "Kral","Vorryn","Dhess","Orath","Selun","Mynx","Zurai","Brennox","Celth",
 ]
-FACTION_COLOURS = ["#e74c3c","#2ecc71","#f39c12","#9b59b6","#e67e22","#1abc9c","#e84393","#00cec9","#fdcb6e","#6c5ce7"]
+FACTION_COLOURS = ["#ff2244","#00cc55","#ffaa00","#aa33ff","#ff6600","#00ccbb","#ff2299","#0099ff","#aaff00","#6644ff"]
 
 # Distinct colours for PvP players (max 6 slots, all visually distinct)
-PVP_PLAYER_COLOURS = ["#00ffff","#e74c3c","#2ecc71","#f39c12","#e84393","#6c5ce7"]
+PVP_PLAYER_COLOURS = ["#00eeff","#ff2244","#00cc55","#ffaa00","#ff2299","#0099ff"]
 
 # ── Resources ─────────────────────────────────────────────────────────────────
 # New unified currency system: Credits
@@ -138,7 +138,8 @@ SHIP_ATTACK_RANGE = {
 # ── AI ────────────────────────────────────────────────────────────────────────
 AI_DECISION_INTERVAL  = 120  # ticks between AI decisions (6 s at 20 Hz)
 AUTO_FLEET_INTERVAL   = 800  # ticks between auto-fleet bursts per owned planet (40 s)
-MAX_SHIPS_PER_FACTION = 30   # hard cap per faction to keep N² combat loop fast
+FLEET_CAP_PER_PLANET = 20    # ships allowed per owned planet
+FLEET_CAP_MIN        = 20    # minimum cap regardless of planet count
 MOTHERSHIP_SPAWN_INTERVAL = 400  # ticks between mothership fighter spawns (20 s)
 
 # Build times for manually-queued ships (ticks at 20 Hz)

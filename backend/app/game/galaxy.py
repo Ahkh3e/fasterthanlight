@@ -21,12 +21,12 @@ from game.orbits import orbit_layout_for_index
 from game.state import Planet, Ship, Faction
 
 
-def generate(seed: int, planet_count: int = 120):
+def generate(seed: int, planet_count: int = 120, ai_count: int = None):
     rng = random.Random(seed)
 
     planets  = _place_planets(rng, planet_count)
     _build_lanes(planets)
-    factions = _create_factions(rng, planet_count)
+    factions = _create_factions(rng, planet_count, ai_count=ai_count)
     _assign_starting_planets(rng, planets, factions)
     _reveal_starting_areas(planets, factions)
     ships    = _create_starting_ships(rng, planets, factions)
@@ -191,8 +191,11 @@ def _faction_count(planet_count: int) -> int:
     return 6
 
 
-def _create_factions(rng: random.Random, planet_count: int) -> list[Faction]:
-    num_npcs  = _faction_count(planet_count) - 1  # -1 for player
+def _create_factions(rng: random.Random, planet_count: int, ai_count: int = None) -> list[Faction]:
+    if ai_count is not None:
+        num_npcs = max(1, min(5, int(ai_count)))
+    else:
+        num_npcs = _faction_count(planet_count) - 1  # -1 for player
     archetypes = rng.sample(["expansionist", "defensive", "opportunistic",
                               "expansionist", "defensive"], num_npcs)
     used_names: set[str] = set()

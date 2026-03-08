@@ -31,8 +31,10 @@ class GameApp {
     this.gameId = null
     this.seed = null
     this.connectionOnline = false
+    this.connectionReconnecting = false
     this.playersOnline = 0
     this.endpointLabel = hostLabelFromUrl(API_URL)
+    this._soloAiCount = 5
 
     // Lobby state
     this.lobbyId = null
@@ -177,6 +179,11 @@ class GameApp {
     this.exploredLanePath   = null
     this.unexploredLanePath = null
     this.laneDirty          = true
+
+    // Territory overlay (Voronoi influence map, rebuilt on planet capture)
+    this._territoryCanvas     = null
+    this._territoryBorderPath = null
+    this._territoryDirty      = true
 
     // Starfield background (offscreen, generated once)
     this._starCanvas = null
@@ -932,14 +939,14 @@ class GameApp {
     const musicMuted = this.audio.isMusicMuted()
 
     if (sfxBtn) {
-      sfxBtn.textContent = sfxMuted ? 'SFX OFF' : 'SFX ON'
-      sfxBtn.style.color = sfxMuted ? '#ff7a7a' : '#7ae7ff'
-      sfxBtn.style.borderColor = sfxMuted ? '#8a4040' : '#2f5f80'
+      sfxBtn.textContent = sfxMuted ? 'FX✕' : 'FX'
+      sfxBtn.style.color = sfxMuted ? '#ff7a7a' : '#5a8aaa'
+      sfxBtn.style.borderColor = sfxMuted ? '#8a4040' : '#2a4a60'
     }
     if (musicBtn) {
-      musicBtn.textContent = musicMuted ? 'MUSIC OFF' : 'MUSIC ON'
-      musicBtn.style.color = musicMuted ? '#ff7a7a' : '#7ae7ff'
-      musicBtn.style.borderColor = musicMuted ? '#8a4040' : '#2f5f80'
+      musicBtn.textContent = musicMuted ? '♪✕' : '♪'
+      musicBtn.style.color = musicMuted ? '#ff7a7a' : '#5a8aaa'
+      musicBtn.style.borderColor = musicMuted ? '#8a4040' : '#2a4a60'
     }
   }
 
@@ -994,8 +1001,18 @@ class GameApp {
     const conn = document.getElementById('hud-conn')
     const ep = document.getElementById('hud-endpoint')
     const on = document.getElementById('hud-online')
-    if (conn) conn.textContent = this.connectionOnline ? 'ONLINE' : 'OFFLINE'
-    if (conn) conn.style.color = this.connectionOnline ? '#00e8cc' : '#ff6f78'
+    if (conn) {
+      if (this.connectionOnline) {
+        conn.textContent = 'ONLINE'
+        conn.style.color = '#00e8cc'
+      } else if (this.connectionReconnecting) {
+        conn.textContent = 'RECONNECTING'
+        conn.style.color = '#ffaa00'
+      } else {
+        conn.textContent = 'OFFLINE'
+        conn.style.color = '#ff6f78'
+      }
+    }
     if (ep) ep.textContent = this.endpointLabel
     if (on) on.textContent = `${this.playersOnline}`
   }
@@ -1115,10 +1132,21 @@ class GameApp {
             : 0
           player._lastCredits = player.credits
         }
-        set('hud-income', `+${(this._incomeRate ?? 0).toFixed(1)}/s`)
+        const incomeSign = (this._incomeRate ?? 0) >= 0 ? '+' : ''
+        set('hud-income', `${incomeSign}${(this._incomeRate ?? 0).toFixed(1)}/s`)
         set('hud-rp', Math.floor(player.research_points))
         set('hud-tier', player.tech_tier)
         set('hud-tick', this.gameState.tick)
+
+        // Fleet count / cap
+        const fleetCount = this.gameState.ships.filter(s => s.owner === this.gameState.player_faction_id).length
+        const fleetCap = player.fleet_cap ?? 20
+        const fleetEl = document.getElementById('hud-fleet-display')
+        if (fleetEl) {
+          fleetEl.textContent = `${fleetCount} / ${fleetCap}`
+          const pct = fleetCount / fleetCap
+          fleetEl.style.color = pct >= 1.0 ? 'var(--h-fleet-crit)' : pct >= 0.85 ? 'var(--h-fleet-warn)' : 'var(--h-fleet)'
+        }
       }
     }
 
@@ -1169,24 +1197,24 @@ class GameApp {
     el.innerHTML = sorted.map(f => {
       const pc  = planetCount[f.id] ?? 0
       const sc  = shipCount[f.id] ?? 0
+      const cap = f.fleet_cap ?? Math.max(20, pc * 20)
       const pct = totalPlanets > 0 ? Math.round(pc / totalPlanets * 100) : 0
       const isPlayer = f.id === player_faction_id
       const dim = f.eliminated
       const col = f.colour ?? '#888'
-      const nameCol = isPlayer ? '#00e8cc' : (dim ? '#2a3a44' : '#b0c8d0')
-      const statCol = dim ? '#2a3a44' : '#4a7080'
-      const barCol  = dim ? '#1a2a30' : (isPlayer ? '#00e8cc' : col)
+      const barCol = dim ? '#1a2a30' : (isPlayer ? '#00D8C8' : col)
+      const atCap = sc >= cap
       return `
-        <div style="padding:3px 0;${dim ? 'opacity:0.35;' : ''}">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="width:9px;height:9px;border-radius:50%;background:${col};flex-shrink:0;display:inline-block;${isPlayer ? `box-shadow:0 0 6px ${col};` : ''}"></span>
-            <span style="color:${nameCol};font-size:12px;font-weight:${isPlayer ? 700 : 500};flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${f.name}</span>
-            <span style="color:${statCol};font-size:11px;min-width:18px;text-align:right;">${pc}</span>
-            <span style="color:${dim ? '#2a3a44' : '#c09830'};font-size:11px;min-width:32px;text-align:right;">${pct}%</span>
-            <span style="color:${dim ? '#2a3a44' : '#4a9080'};font-size:11px;min-width:34px;text-align:right;">${sc} ▲</span>
+        <div class="faction-row${dim ? ' faction-dim' : ''}">
+          <div class="faction-row-main">
+            <span class="faction-dot" style="background:${col}${isPlayer ? `;box-shadow:0 0 6px ${col}` : ''}"></span>
+            <span class="faction-name${isPlayer ? ' is-player' : ''}">${f.name}</span>
+            <span class="faction-stat">${pc}</span>
+            <span class="faction-pct">${pct}%</span>
+            <span class="faction-fleet${atCap ? ' at-cap' : ''}">${sc}/${cap}</span>
           </div>
-          <div style="height:2px;background:#0d1820;border-radius:1px;margin:4px 0 1px 17px;">
-            <div style="width:${pct}%;height:100%;background:${barCol};border-radius:1px;opacity:${dim ? 0.2 : 0.65};"></div>
+          <div class="faction-bar-track">
+            <div class="faction-bar-fill" style="width:${pct}%;background:${barCol};opacity:${dim ? 0.2 : 0.7}"></div>
           </div>
         </div>`
     }).join('')
@@ -1673,6 +1701,13 @@ class GameApp {
     }
   }
 
+  setAiCount(n) {
+    this._soloAiCount = n
+    document.querySelectorAll('#ai-count-selector .ai-count-btn').forEach(btn => {
+      btn.classList.toggle('ai-count-selected', parseInt(btn.dataset.ai) === n)
+    })
+  }
+
   launchNewGame() {
     this.audio.playSfx('click')
     this.closeTutorial()
@@ -1680,7 +1715,7 @@ class GameApp {
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
     this._showMenuStars(false)
     this.clearLobbyState()
-    this.startNewGame()
+    this.startNewGame({ aiCount: this._soloAiCount })
   }
 
   launchDevSandbox() {
@@ -1824,13 +1859,16 @@ class GameApp {
   async startNewGame(opts = {}) {
     try {
       const devStart = !!opts.devStart
+      const aiCount = opts.aiCount != null ? opts.aiCount : this._soloAiCount
+      const planetCount = 15 * (1 + aiCount)
       const response = await fetch(`${API_URL}/game/new`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           seed: null,
-          planet_count: 120,
+          planet_count: planetCount,
           dev_start: devStart,
+          ai_count: aiCount,
         })
       })
 
@@ -1864,6 +1902,7 @@ class GameApp {
     this.socket = new SocketClient(wsUrl)
     this.socket.onOpen = () => {
       this.connectionOnline = true
+      this.connectionReconnecting = false
       this.updateConnectionHUD()
       this.updateHUD()
       this.audio.playMusic('game')
@@ -1871,6 +1910,7 @@ class GameApp {
     this.socket.onClose = () => {
       this.connectionOnline = false
       this.playersOnline = 0
+      this.connectionReconnecting = true
       this.updateConnectionHUD()
     }
     this.socket.onMessage = (msg) => this.handleMessage(msg)
@@ -2028,6 +2068,7 @@ class GameApp {
         this.gameState.ships.forEach(s => { sMap[s.id] = s })
         if (!sMap[evt.ship.id]) this.gameState.ships.push(evt.ship)
       } else if (evt.type === 'planet_captured') {
+        this._territoryDirty = true
         const pid = this.gameState.player_faction_id
         const pName = this.gameState.planets.find(p => p.id === evt.planet_id)?.name ?? evt.planet_id
         if (evt.by === pid) {
@@ -2258,7 +2299,8 @@ class GameApp {
     const { player_faction_id, planets, factions } = this.gameState
     const factionMap = this.getFactionMap()
 
-    this.laneDirty = true
+    this.laneDirty       = true
+    this._territoryDirty = true
 
     planets.forEach(planet => {
       if (this.planetRenderers[planet.id]) {
@@ -2314,6 +2356,89 @@ class GameApp {
     this.exploredLanePath   = exp
     this.unexploredLanePath = unexp
     this.laneDirty          = false
+  }
+
+  // ── Territory overlay (Voronoi influence map) ─────────────────────────────
+
+  _hexToRgb(hex) {
+    const n = parseInt(hex.replace('#', ''), 16)
+    return { r: (n >> 16) & 255, g: (n >> 8) & 255, b: n & 255 }
+  }
+
+  _rebuildTerritoryMap() {
+    this._territoryDirty = false
+    if (!this.gameState) return
+
+    const GRID = 100
+    const cellW = GALAXY_WIDTH  / GRID
+    const cellH = GALAXY_HEIGHT / GRID
+    const factionMap = this.getFactionMap()
+
+    const owned = this.gameState.planets.filter(p => p.owner)
+    if (owned.length === 0) {
+      this._territoryCanvas     = null
+      this._territoryBorderPath = new Path2D()
+      return
+    }
+
+    // For each grid cell find the nearest owned planet (capped Voronoi —
+    // only fill cells within MAX_TERRITORY_RADIUS of an owned planet)
+    const MAX_TERRITORY_RADIUS = 700   // world units (~lane length)
+    const MAX_DIST_SQ = MAX_TERRITORY_RADIUS * MAX_TERRITORY_RADIUS
+    const grid = new Array(GRID * GRID)
+    for (let cy = 0; cy < GRID; cy++) {
+      const wy = (cy + 0.5) * cellH
+      for (let cx = 0; cx < GRID; cx++) {
+        const wx = (cx + 0.5) * cellW
+        let nearest = null, minDist = Infinity
+        for (const p of owned) {
+          const dx = p.x - wx, dy = p.y - wy
+          const d = dx * dx + dy * dy
+          if (d < minDist) { minDist = d; nearest = p }
+        }
+        grid[cy * GRID + cx] = (nearest && minDist <= MAX_DIST_SQ) ? nearest.owner : null
+      }
+    }
+
+    // Build fill bitmap — one RGBA pixel per grid cell
+    const bitmap = new ImageData(GRID, GRID)
+    for (let i = 0; i < GRID * GRID; i++) {
+      const owner = grid[i]
+      if (!owner) continue
+      const colour = factionMap[owner]?.colour
+      if (!colour) continue
+      const rgb = this._hexToRgb(colour)
+      const p = i * 4
+      bitmap.data[p]     = rgb.r
+      bitmap.data[p + 1] = rgb.g
+      bitmap.data[p + 2] = rgb.b
+      bitmap.data[p + 3] = 255
+    }
+
+    const offscreen = new OffscreenCanvas(GRID, GRID)
+    offscreen.getContext('2d').putImageData(bitmap, 0, 0)
+    this._territoryCanvas = offscreen
+
+    // Build border Path2D — edges between cells of different factions
+    const path = new Path2D()
+    for (let cy = 0; cy < GRID; cy++) {
+      for (let cx = 0; cx < GRID; cx++) {
+        const owner = grid[cy * GRID + cx]
+        // Vertical border (right edge of this cell)
+        if (cx + 1 < GRID && grid[cy * GRID + cx + 1] !== owner) {
+          const bx = (cx + 1) * cellW
+          path.moveTo(bx, cy       * cellH)
+          path.lineTo(bx, (cy + 1) * cellH)
+        }
+        // Horizontal border (bottom edge of this cell)
+        if (cy + 1 < GRID && grid[(cy + 1) * GRID + cx] !== owner) {
+          const by = (cy + 1) * cellH
+          path.moveTo(cx       * cellW, by)
+          path.lineTo((cx + 1) * cellW, by)
+        }
+      }
+    }
+    this._territoryBorderPath = path
   }
 
   getFactionMap() {
@@ -2451,6 +2576,7 @@ class GameApp {
     document.getElementById('gameover-screen')?.style.setProperty('display', 'none')
     this.socket?.close()
     this.connectionOnline = false
+    this.connectionReconnecting = false
     this.playersOnline = 0
     this.updateConnectionHUD()
     this.gameState = null
@@ -2498,12 +2624,18 @@ class GameApp {
     let fpsDisplay = document.getElementById('fps-display')
 
     let lastRenderTime = performance.now()
+    const FRAME_BUDGET = 1000 / 60  // cap at 60 fps
 
     const render = () => {
+      requestAnimationFrame(render)
+      const now2 = performance.now()
+      const sinceLastRender = now2 - lastRenderTime
+      // Skip frame if less than one frame budget has elapsed (saves CPU on 120/144Hz+)
+      if (sinceLastRender < FRAME_BUDGET - 1) return
+
       // FPS counter
       fpsFrames++
-      const now2 = performance.now()
-      const dt = Math.min(now2 - lastRenderTime, 50)  // cap at 50ms to avoid jumps
+      const dt = Math.min(sinceLastRender, 50)  // cap at 50ms to avoid jumps
       lastRenderTime = now2
       if (now2 - fpsLast >= 1000) {
         const fps = Math.round(fpsFrames * 1000 / (now2 - fpsLast))
@@ -2538,7 +2670,29 @@ class GameApp {
           maxX: (this.width - this.panX) / this.zoom,
           maxY: (this.height - this.panY) / this.zoom,
         }
-        
+
+        // Territory overlay — fade in when zoomed out
+        if (this._territoryDirty) this._rebuildTerritoryMap()
+        const TERR_ZOOM_SHOW = 0.30  // start fading in
+        const TERR_ZOOM_FULL = 0.14  // fully opaque
+        if (this.zoom < TERR_ZOOM_SHOW && this._territoryCanvas) {
+          const alpha = Math.min(1, (TERR_ZOOM_SHOW - this.zoom) / (TERR_ZOOM_SHOW - TERR_ZOOM_FULL))
+          this.ctx.save()
+          // Faction-colored fill — soft Voronoi gradient
+          this.ctx.globalAlpha = alpha * 0.28
+          this.ctx.imageSmoothingEnabled = true
+          this.ctx.imageSmoothingQuality = 'high'
+          this.ctx.drawImage(this._territoryCanvas, 0, 0, GALAXY_WIDTH, GALAXY_HEIGHT)
+          // Crisp border lines between faction regions
+          if (this._territoryBorderPath) {
+            this.ctx.globalAlpha = alpha * 0.55
+            this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.9)'
+            this.ctx.lineWidth = 2.5 / this.zoom
+            this.ctx.stroke(this._territoryBorderPath)
+          }
+          this.ctx.restore()
+        }
+
         // Draw lanes (Path2D cache rebuilt only on tick, not every frame)
         if (this.laneDirty) this._rebuildLanePaths(this.gameState.planets)
         this.ctx.lineWidth = Math.max(1, 1.5 / this.zoom)
@@ -2649,9 +2803,8 @@ class GameApp {
         }
       }
 
-      requestAnimationFrame(render)
     }
-    
+
     requestAnimationFrame(render)
   }
 

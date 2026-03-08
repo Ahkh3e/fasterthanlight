@@ -100,6 +100,7 @@ class NewGameRequest(BaseModel):
     seed:         Optional[int] = None
     planet_count: Optional[int] = 120
     dev_start:    bool = False
+    ai_count:     Optional[int] = None
 
 
 class LobbyCreateRequest(BaseModel):
@@ -128,10 +129,10 @@ def _apply_dev_start(state: GameState) -> None:
         faction.storage_capacity = max(faction.storage_capacity, 10000.0)
 
 
-def _create_game(seed: Optional[int], planet_count: Optional[int], dev_start: bool = False) -> tuple[str, GameState]:
+def _create_game(seed: Optional[int], planet_count: Optional[int], dev_start: bool = False, ai_count: Optional[int] = None) -> tuple[str, GameState]:
     game_id = str(uuid.uuid4())[:8]
     game_seed = seed if seed is not None else int(uuid.uuid4().int % 1_000_000)
-    state = GameState.create(game_id=game_id, seed=game_seed, planet_count=planet_count or 120)
+    state = GameState.create(game_id=game_id, seed=game_seed, planet_count=planet_count or 120, ai_count=ai_count)
     state.dev_mode = bool(dev_start)
     if dev_start:
         _apply_dev_start(state)
@@ -160,7 +161,7 @@ def _cleanup_game(game_id: str) -> None:
 
 @app.post("/game/new")
 async def new_game(req: NewGameRequest):
-    game_id, state = _create_game(req.seed, req.planet_count, req.dev_start)
+    game_id, state = _create_game(req.seed, req.planet_count, req.dev_start, req.ai_count)
     return {
         "game_id": game_id,
         "seed": state.seed,

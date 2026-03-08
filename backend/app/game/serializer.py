@@ -108,6 +108,7 @@ def _faction(f: Faction) -> dict:
         "deaths":          f.deaths,
         "ships_built":     f.ships_built,
         "ships_built_by_type": dict(f.ships_built_by_type),
+        "fleet_cap":       f.fleet_cap,
         # ai_timer is internal; not sent to client
     }
 
@@ -178,4 +179,5 @@ def _faction_resources(f: Faction) -> dict:
         "eliminated":      f.eliminated,
         "storage_capacity": round(f.storage_capacity, 1),
         "fleet_upgrades":  dict(f.fleet_upgrades),
+        "fleet_cap":       f.fleet_cap,
     }

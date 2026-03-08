@@ -47,6 +47,8 @@ class Faction:
     deaths: int = 0
     ships_built: int = 0
     ships_built_by_type: dict = field(default_factory=dict)
+    # Fleet cap (recomputed each tick from planet count; not persisted)
+    fleet_cap: int = 20
 
 
 @dataclass
@@ -95,9 +97,9 @@ class GameState:
     tick_events: list = field(default_factory=list) # cleared each tick; not persisted
 
     @classmethod
-    def create(cls, game_id: str, seed: int, planet_count: int = 120) -> "GameState":
+    def create(cls, game_id: str, seed: int, planet_count: int = 120, ai_count: int = None) -> "GameState":
         from game.galaxy import generate
-        planets, ships, factions = generate(seed=seed, planet_count=planet_count)
+        planets, ships, factions = generate(seed=seed, planet_count=planet_count, ai_count=ai_count)
         return cls(
             id=game_id,
             seed=seed,

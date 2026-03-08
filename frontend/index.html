@@ -59,6 +59,16 @@
             left: 20px;
         }
 
+        .bottom-center {
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+        }
+
+        .hud-panel.bottom-center:hover {
+            transform: translateX(-50%) !important;
+        }
+
         .bottom-right {
             bottom: 20px;
             right: 20px;
@@ -435,6 +445,35 @@
 
         .retro-input::placeholder {
             color: #4b7087;
+        }
+
+        #ai-count-selector .ai-count-btn {
+            width: 30px !important;
+            height: 30px !important;
+            padding: 0 !important;
+            font-size: 13px !important;
+            background: #0a1a28 !important;
+            border: 1px solid #2f5f80 !important;
+            color: #5a8aaa !important;
+            letter-spacing: 0;
+            box-shadow: none !important;
+            border-radius: 0 !important;
+            margin: 0 !important;
+            min-height: unset !important;
+            flex: none !important;
+        }
+
+        #ai-count-selector .ai-count-btn.ai-count-selected {
+            background: linear-gradient(135deg, #003a58, #004870) !important;
+            border-color: #00c8aa !important;
+            color: #00eeff !important;
+            box-shadow: 0 0 10px rgba(0,200,180,0.35) !important;
+        }
+
+        #ai-count-selector .ai-count-btn:hover:not(.ai-count-selected) {
+            background: #0d2236 !important;
+            color: #8ab4cc !important;
+            transform: none !important;
         }
 
         .start-layout {
@@ -947,7 +986,6 @@
         }
 
         .top-right,
-        .bottom-left,
         .bottom-right {
             min-width: 260px;
         }
@@ -1108,6 +1146,813 @@
             }
         }
     </style>
+
+    <!-- Start Screen Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Russo+One&family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+    <style>
+        /* ═══════════════════════════════════════════════════════════
+           START SCREEN — Phosphor Amber Command Terminal
+           Distinct amber/warm palette, opposed to blue cockpit HUD
+           ══════════════════════════════════════════════════════════ */
+
+        #start-screen {
+            background:
+                repeating-linear-gradient(0deg, rgba(0,0,0,0.05) 0px, rgba(0,0,0,0.05) 1px, transparent 1px, transparent 3px),
+                radial-gradient(ellipse 100% 50% at 50% -5%, rgba(80,45,0,0.4) 0%, transparent 60%),
+                #060400 !important;
+        }
+
+        .start-wrap {
+            width: min(960px, 96vw);
+            display: flex;
+            flex-direction: column;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+        }
+
+        /* ── Header / Title ── */
+        .start-header {
+            text-align: center;
+            padding: 16px 0 12px;
+        }
+
+        .start-header-rule {
+            height: 1px;
+            background: linear-gradient(90deg, transparent, rgba(160,90,0,0.3), #7A4800, rgba(160,90,0,0.3), transparent);
+            margin: 8px 0;
+        }
+
+        .start-kicker {
+            color: #3A2000;
+            font-size: 10px;
+            letter-spacing: 3px;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+        }
+
+        .start-title {
+            font-family: 'Russo One', 'Arial Black', sans-serif !important;
+            font-size: clamp(34px, 5.6vw, 70px) !important;
+            font-weight: 400 !important;
+            letter-spacing: 10px !important;
+            color: #C87800 !important;
+            text-shadow:
+                0 0 50px rgba(200, 120, 0, 0.35),
+                0 0 100px rgba(200, 120, 0, 0.12) !important;
+            margin: 10px 0 !important;
+            line-height: 1 !important;
+            text-transform: uppercase !important;
+        }
+
+        /* ── Two-column layout ── */
+        .start-content {
+            display: flex;
+            gap: 14px;
+            align-items: flex-start;
+        }
+
+        /* ── Command panel (left column) ── */
+        .start-cmd-panel {
+            flex: 0 0 290px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            border: 1px solid #2E1C00;
+            background: rgba(8, 5, 0, 0.7);
+            padding: 13px;
+            max-height: 68vh;
+            overflow-y: auto;
+        }
+
+        .start-cmd-label {
+            color: #3A2000;
+            font-size: 9px;
+            letter-spacing: 3px;
+            text-transform: uppercase;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+            margin-bottom: 2px;
+        }
+
+        .start-cmd-divider {
+            color: #2E1C00;
+            font-size: 9px;
+            text-align: center;
+            border-top: 1px solid #1E1000;
+            padding-top: 7px;
+            margin: 3px 0;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+            letter-spacing: 2px;
+        }
+
+        /* ── All buttons inside command panel ── */
+        #start-screen .start-cmd-panel button {
+            background: rgba(8, 5, 0, 0.5) !important;
+            color: #9A5E00 !important;
+            border: 1px solid #2E1C00 !important;
+            border-radius: 0 !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            font-size: 11px !important;
+            font-weight: 400 !important;
+            letter-spacing: 2px !important;
+            padding: 9px 12px !important;
+            min-height: unset !important;
+            width: 100% !important;
+            text-align: left !important;
+            box-shadow: none !important;
+            margin: 0 !important;
+            transition: background 0.12s, color 0.12s, border-color 0.12s !important;
+        }
+
+        #start-screen .start-cmd-panel button:hover {
+            background: rgba(160, 90, 0, 0.09) !important;
+            color: #D88000 !important;
+            border-color: #4A2C00 !important;
+        }
+
+        /* Primary CTA */
+        #start-screen .start-cmd-panel .start-btn-primary {
+            color: #D88000 !important;
+            border-color: #4A2C00 !important;
+            background: rgba(160, 90, 0, 0.08) !important;
+        }
+
+        #start-screen .start-cmd-panel .start-btn-primary:hover {
+            color: #FFB000 !important;
+            border-color: #7A4800 !important;
+            background: rgba(160, 90, 0, 0.16) !important;
+        }
+
+        /* Muted */
+        #start-screen .start-cmd-panel .start-btn-muted {
+            color: #3A2000 !important;
+            border-color: #1E1000 !important;
+        }
+
+        /* Disabled */
+        #start-screen .start-cmd-panel .start-btn-disabled {
+            color: #241600 !important;
+            border-color: #160A00 !important;
+            opacity: 0.45 !important;
+            cursor: not-allowed !important;
+        }
+
+        /* Launch (pulsing) */
+        #start-screen .start-cmd-panel .start-btn-launch {
+            color: #FFB000 !important;
+            border-color: #C87800 !important;
+            background: rgba(200, 120, 0, 0.1) !important;
+            animation: start-pulse 1.6s ease-in-out infinite;
+        }
+
+        @keyframes start-pulse {
+            0%, 100% { box-shadow: none !important; }
+            50% { box-shadow: 0 0 12px rgba(200, 120, 0, 0.22) !important; }
+        }
+
+        /* Paste button smaller */
+        #start-screen .start-cmd-panel .start-code-row button {
+            width: auto !important;
+            flex: 0 0 auto !important;
+            padding: 9px 10px !important;
+            font-size: 10px !important;
+            letter-spacing: 1px !important;
+        }
+
+        /* ── AI selector row ── */
+        .start-ai-row { display: flex; gap: 6px; align-items: center; }
+        .start-ai-row > button:first-child { flex: 1; }
+        .start-ai-group { display: flex; flex-direction: column; gap: 2px; align-items: center; }
+        .start-ai-label { color: #3A2000; font-size: 8px; letter-spacing: 1.5px; font-family: 'Share Tech Mono', 'Courier New', monospace; }
+
+        #start-screen #ai-count-selector .ai-count-btn {
+            background: rgba(8, 5, 0, 0.9) !important;
+            border: 1px solid #2E1C00 !important;
+            color: #4A2A00 !important;
+            width: 26px !important;
+            height: 26px !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            font-size: 10px !important;
+        }
+
+        #start-screen #ai-count-selector .ai-count-btn.ai-count-selected {
+            background: rgba(200, 120, 0, 0.14) !important;
+            border-color: #C87800 !important;
+            color: #FFB000 !important;
+            box-shadow: 0 0 8px rgba(200, 120, 0, 0.2) !important;
+        }
+
+        #start-screen #ai-count-selector .ai-count-btn:hover:not(.ai-count-selected) {
+            background: rgba(160, 90, 0, 0.07) !important;
+            color: #7A4400 !important;
+        }
+
+        /* ── Code row ── */
+        .start-code-row { display: flex; gap: 5px; align-items: center; }
+        .start-code-row input { flex: 1; }
+
+        /* ── Inputs ── */
+        #start-screen .retro-input {
+            background: rgba(8, 5, 0, 0.8) !important;
+            border: 1px solid #2E1C00 !important;
+            color: #B07000 !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            font-size: 11px !important;
+            padding: 9px 10px !important;
+            min-height: unset !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            letter-spacing: 2px !important;
+        }
+
+        #start-screen .retro-input::placeholder { color: #3A2000 !important; }
+
+        /* ── Audio ── */
+        .start-audio-row { display: flex; align-items: center; gap: 8px; }
+
+        .start-audio-label {
+            color: #3A2000;
+            font-size: 9px;
+            letter-spacing: 2px;
+            min-width: 44px;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+        }
+
+        .start-audio-val {
+            color: #5A3400;
+            font-size: 9px;
+            min-width: 28px;
+            text-align: right;
+            font-family: 'Share Tech Mono', 'Courier New', monospace;
+        }
+
+        #start-screen .start-audio-row input[type="range"] {
+            flex: 1;
+            accent-color: #C87800;
+            opacity: 0.6;
+        }
+
+        .start-help {
+            color: #2A1600 !important;
+            font-size: 9px !important;
+            letter-spacing: 2px !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            text-align: center !important;
+            margin-top: 8px !important;
+            line-height: 1.9 !important;
+        }
+
+        /* ── Lobby / Comms panel (right column) ── */
+        .lobby-box {
+            flex: 1 !important;
+            border: 1px solid #2E1C00 !important;
+            background: rgba(8, 5, 0, 0.7) !important;
+            box-shadow: none !important;
+            width: auto !important;
+            min-height: 0 !important;
+            max-height: 68vh !important;
+            overflow-y: auto !important;
+            padding: 13px !important;
+        }
+
+        .lobby-box-title {
+            color: #3A2000 !important;
+            font-size: 9px !important;
+            font-weight: 400 !important;
+            letter-spacing: 3px !important;
+            margin-bottom: 10px !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            border-bottom: 1px solid #1E1000 !important;
+            padding-bottom: 7px !important;
+        }
+
+        .lobby-box-line {
+            color: #6A4000 !important;
+            font-size: 11px !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            letter-spacing: 1px !important;
+            margin-bottom: 8px !important;
+        }
+
+        #start-screen .lobby-copy-btn {
+            font-size: 10px !important;
+            margin-bottom: 8px !important;
+        }
+
+        .lobby-roster-wrap {
+            border: 1px solid #1E1000 !important;
+            background: rgba(5, 3, 0, 0.6) !important;
+            border-radius: 0 !important;
+            padding: 10px !important;
+            min-height: 130px !important;
+            margin-top: 8px !important;
+        }
+
+        .lobby-roster-title {
+            color: #3A2000 !important;
+            font-size: 9px !important;
+            letter-spacing: 2.5px !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            margin-bottom: 8px !important;
+        }
+
+        .lobby-player-row {
+            border: 1px solid rgba(46, 28, 0, 0.5) !important;
+            background: rgba(8, 5, 0, 0.8) !important;
+            border-radius: 0 !important;
+            padding: 5px 7px !important;
+        }
+
+        .lobby-player-slot {
+            border-radius: 0 !important;
+            border-color: rgba(80, 50, 0, 0.5) !important;
+            color: #9A5E00 !important;
+            background: rgba(15, 10, 0, 0.9) !important;
+            font-size: 10px !important;
+        }
+
+        .lobby-player-name {
+            color: #7A4800 !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            font-size: 11px !important;
+        }
+
+        .lobby-player-host {
+            background: #4A2C00 !important;
+            color: #C87800 !important;
+            border-color: rgba(200, 120, 0, 0.4) !important;
+            border-radius: 0 !important;
+            font-size: 8px !important;
+        }
+
+        .lobby-roster-empty {
+            color: #2E1C00 !important;
+            border-color: rgba(46, 28, 0, 0.3) !important;
+            background: transparent !important;
+            border-radius: 0 !important;
+            font-family: 'Share Tech Mono', 'Courier New', monospace !important;
+            font-size: 11px !important;
+        }
+
+        @media (max-width: 700px) {
+            .start-content { flex-direction: column; }
+            .start-cmd-panel { flex: none; width: 100%; box-sizing: border-box; max-height: none; }
+            .lobby-box { max-height: none !important; }
+            .start-title { font-size: clamp(28px, 8vw, 56px) !important; letter-spacing: 5px !important; }
+        }
+    </style>
+
+    <style>
+        /* ═══════════════════════════════════════════════════════════
+           GAME HUD — Combat Operations Terminal
+           IBM Plex Mono · color-coded semantics · max readability
+           ══════════════════════════════════════════════════════════ */
+
+        :root {
+            --h-cr:        #00D8C8;   /* credits: teal */
+            --h-cr-pos:    #34E880;   /* positive income: green */
+            --h-cr-neg:    #FF5566;   /* negative income: red */
+            --h-fleet:     #4BC5FF;   /* fleet: sky blue */
+            --h-fleet-warn:#FFAA00;   /* fleet near cap: amber */
+            --h-fleet-crit:#FF3A4E;   /* fleet at cap: red */
+            --h-rp:        #B07BFF;   /* research: violet */
+            --h-tier:      #FFB800;   /* tier: amber */
+            --h-green:     #34E880;
+            --h-red:       #FF3A4E;
+            --h-text:      #BDD4DF;   /* primary readable text */
+            --h-label:     #4E8499;   /* dim labels */
+            --h-ghost:     #253845;   /* very dim decorative */
+            --h-border:    #1C3A52;
+            --h-border-hi: #2C5470;
+            --h-bg:        rgba(8, 16, 26, 0.97);
+            --h-bg-hi:     rgba(11, 22, 34, 0.99);
+            --h-font:      'IBM Plex Mono', 'Courier New', monospace;
+        }
+
+        /* ── Base panel override (highest priority — comes last) ── */
+        .hud-panel {
+            background: var(--h-bg) !important;
+            border: 1px solid var(--h-border) !important;
+            border-top: 2px solid var(--h-border-hi) !important;
+            border-radius: 0 !important;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.6), inset 0 0 0 1px rgba(0,185,220,0.04) !important;
+            font-family: var(--h-font) !important;
+            padding: 12px 14px !important;
+            color: var(--h-text) !important;
+        }
+
+        .hud-panel:hover {
+            background: var(--h-bg-hi) !important;
+            border-color: var(--h-border) !important;
+            border-top-color: #386888 !important;
+            transform: none !important;
+        }
+
+        .hud-panel.bottom-center:hover {
+            transform: translateX(-50%) !important;
+        }
+
+        /* ── Top-right HUD ── */
+        .hud-tr-title {
+            font-size: 12px;
+            font-weight: 600;
+            letter-spacing: 3px;
+            color: var(--h-text);
+            font-family: var(--h-font);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .hud-tr-meta {
+            font-size: 10px;
+            color: var(--h-ghost);
+            letter-spacing: 1px;
+            margin-bottom: 8px;
+            font-family: var(--h-font);
+        }
+
+        .hud-tr-meta span { color: var(--h-label); }
+
+        .hud-tr-conn {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px 14px;
+            font-size: 10px;
+            color: var(--h-ghost);
+            margin-bottom: 11px;
+            font-family: var(--h-font);
+        }
+
+        .hud-tr-conn-item { display: flex; gap: 4px; align-items: center; letter-spacing: 0.5px; }
+        .hud-tr-conn-item span { color: var(--h-label); }
+
+        .hud-tr-actions { display: flex; gap: 5px; flex-wrap: wrap; }
+
+        /* HUD action buttons */
+        #btn-menu, #btn-tier-info, #btn-end-game {
+            background: rgba(8,16,26,0.9) !important;
+            color: var(--h-label) !important;
+            border: 1px solid var(--h-border) !important;
+            font-family: var(--h-font) !important;
+            font-size: 11px !important;
+            font-weight: 500 !important;
+            padding: 6px 11px !important;
+            min-height: unset !important;
+            letter-spacing: 1.5px !important;
+            margin: 0 !important;
+            transition: color 0.12s, border-color 0.12s !important;
+        }
+
+        #btn-menu:hover { color: var(--h-text) !important; border-color: var(--h-border-hi) !important; }
+
+        #btn-tier-info {
+            color: var(--h-tier) !important;
+            border-color: rgba(255,184,0,0.22) !important;
+        }
+        #btn-tier-info:hover { border-color: rgba(255,184,0,0.5) !important; }
+
+        #btn-end-game {
+            color: var(--h-red) !important;
+            border-color: rgba(255,58,78,0.18) !important;
+        }
+        #btn-end-game:hover { border-color: rgba(255,58,78,0.45) !important; }
+
+        /* ── Bottom-center stats cells ── */
+        .hud-panel.bottom-center { padding: 8px 6px !important; }
+
+        .hud-stats-row {
+            display: flex;
+            align-items: stretch;
+        }
+
+        .hud-stat-cell {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            padding: 4px 16px;
+        }
+
+        .hud-stat-cell:first-child { padding-left: 10px; }
+        .hud-stat-cell:last-child  { padding-right: 10px; }
+
+        .hud-stat-label {
+            font-size: 8px;
+            letter-spacing: 2.5px;
+            color: var(--h-label);
+            font-family: var(--h-font);
+            text-transform: uppercase;
+            white-space: nowrap;
+        }
+
+        .hud-stat-val {
+            font-size: 17px;
+            font-weight: 600;
+            font-family: var(--h-font);
+            color: var(--h-text);
+            display: flex;
+            align-items: baseline;
+            gap: 6px;
+            white-space: nowrap;
+        }
+
+        .hud-stat-sub {
+            font-size: 11px;
+            font-weight: 400;
+        }
+
+        .hud-stat-div {
+            width: 1px;
+            align-self: stretch;
+            background: var(--h-border);
+            margin: 2px 0;
+        }
+
+        /* ── Bottom-left: keep compact but readable ── */
+        .hud-panel.bottom-left {
+            padding: 7px 11px !important;
+        }
+
+        .hud-sys-row {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            font-size: 10px;
+            color: var(--h-ghost);
+            font-family: var(--h-font);
+        }
+
+        .hud-sys-row span { color: var(--h-ghost); }
+        .hud-sys-item { display: flex; gap: 4px; align-items: center; }
+        .hud-sys-val { color: #304858; }
+
+        .hud-sys-toggle {
+            cursor: pointer;
+            border: 1px solid #1E3040 !important;
+            padding: 2px 6px;
+            color: #3A6070;
+            font-size: 9px;
+            letter-spacing: 1px;
+            font-family: var(--h-font);
+            user-select: none;
+        }
+
+        .hud-sys-toggle:hover { color: #5A9AB8; border-color: #2E5070 !important; }
+
+        /* ── Bottom-right selection ── */
+        .hud-panel.bottom-right { min-width: 210px; padding: 10px 14px !important; }
+
+        .hud-sel-label {
+            font-size: 8px;
+            letter-spacing: 2.5px;
+            color: var(--h-ghost);
+            font-family: var(--h-font);
+            text-transform: uppercase;
+            margin-bottom: 5px;
+        }
+
+        .hud-sel-val {
+            font-size: 13px;
+            font-family: var(--h-font);
+            color: var(--h-text);
+            line-height: 1.55;
+        }
+
+        /* ── Faction status panel ── */
+        #faction-status {
+            font-family: var(--h-font) !important;
+            background: var(--h-bg) !important;
+            border: 1px solid var(--h-border) !important;
+            border-top: 2px solid var(--h-border-hi) !important;
+            border-radius: 0 !important;
+            min-width: 290px !important;
+            padding: 12px 14px !important;
+        }
+
+        .faction-hdr {
+            font-size: 9px;
+            letter-spacing: 2px;
+            color: var(--h-label);
+            font-family: var(--h-font);
+            text-transform: uppercase;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 9px;
+            padding-bottom: 7px;
+            border-bottom: 1px solid var(--h-border);
+        }
+
+        .faction-hdr-cols {
+            color: var(--h-ghost);
+            font-size: 8px;
+            letter-spacing: 1.5px;
+        }
+
+        .faction-row { padding: 4px 0 2px; }
+        .faction-row.faction-dim { opacity: 0.35; }
+
+        .faction-row-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .faction-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .faction-name {
+            font-size: 13px;
+            font-family: var(--h-font);
+            color: var(--h-text);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .faction-name.is-player { color: var(--h-cr); font-weight: 600; }
+
+        .faction-stat {
+            font-size: 12px;
+            font-family: var(--h-font);
+            color: var(--h-label);
+            min-width: 24px;
+            text-align: right;
+        }
+
+        .faction-pct {
+            font-size: 12px;
+            font-family: var(--h-font);
+            color: #B89028;
+            min-width: 34px;
+            text-align: right;
+        }
+
+        .faction-fleet {
+            font-size: 12px;
+            font-family: var(--h-font);
+            color: #3A8070;
+            min-width: 58px;
+            text-align: right;
+        }
+
+        .faction-fleet.at-cap { color: var(--h-red) !important; }
+
+        .faction-bar-track {
+            height: 2px;
+            background: #0D1820;
+            margin: 4px 0 1px 18px;
+        }
+
+        .faction-bar-fill { height: 100%; }
+
+        /* ── Dashboard ── */
+        .dashboard-overlay {
+            font-family: var(--h-font) !important;
+        }
+
+        .dash-head {
+            margin-bottom: 10px !important;
+            padding-bottom: 10px !important;
+        }
+
+        .dash-title {
+            font-family: var(--h-font) !important;
+            font-size: 19px !important;
+            letter-spacing: 1.5px !important;
+        }
+
+        .dash-owner {
+            font-size: 12px !important;
+            letter-spacing: 1px !important;
+        }
+
+        .dash-subhead {
+            font-size: 10px !important;
+            letter-spacing: 1.2px !important;
+            margin-bottom: 14px !important;
+        }
+
+        .dash-stats {
+            gap: 8px !important;
+            padding: 10px !important;
+        }
+
+        .dash-stat {
+            font-size: 11px !important;
+            padding: 7px 10px !important;
+            min-height: 28px !important;
+            align-items: center !important;
+        }
+
+        .dash-stat .v {
+            font-size: 14px !important;
+            font-weight: 600 !important;
+            color: #C8E4F0 !important;
+        }
+
+        .dash-section-title {
+            font-size: 10px !important;
+            letter-spacing: 1.8px !important;
+            margin: 14px 0 7px !important;
+            color: #5EC8FF !important;
+        }
+
+        .dash-section-body {
+            font-size: 12px !important;
+            line-height: 1.65 !important;
+            padding: 10px !important;
+        }
+
+        /* Build buttons — clear enabled/disabled */
+        #dashboard-construction .dash-pixel-btn {
+            font-family: var(--h-font) !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.enabled {
+            background: linear-gradient(180deg, #163848, #102838) !important;
+            color: #C0E0F8 !important;
+            border-color: #366888 !important;
+            min-height: 82px !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.enabled:hover {
+            background: linear-gradient(180deg, #1A4460, #13304C) !important;
+            border-color: #4090B8 !important;
+            box-shadow: 0 0 0 1px rgba(64,144,184,0.3) !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.disabled {
+            background: rgba(9,18,28,0.85) !important;
+            color: #2E4858 !important;
+            border-color: #142030 !important;
+            opacity: 0.65;
+        }
+
+        #dashboard-construction .dash-btn-title {
+            font-size: 12px !important;
+            letter-spacing: 0.7px !important;
+            color: #D0EAFF !important;
+        }
+
+        #dashboard-construction .dash-pixel-btn.disabled .dash-btn-title {
+            color: #3A5870 !important;
+        }
+
+        #dashboard-construction .dash-btn-cost {
+            font-size: 11px !important;
+            color: #80C0E8 !important;
+        }
+
+        #dashboard-construction .dash-btn-desc {
+            font-size: 10px !important;
+            color: #7A9EB8 !important;
+        }
+
+        #dashboard-construction .dash-btn-hint {
+            font-size: 10px !important;
+            color: #B06858 !important;
+        }
+
+        /* Dashboard button row */
+        .dashboard-overlay button {
+            font-family: var(--h-font) !important;
+            font-size: 11px !important;
+            padding: 7px 12px !important;
+            min-height: unset !important;
+            letter-spacing: 1px !important;
+        }
+
+        /* Mothership dashboard */
+        .dash-stat { font-family: var(--h-font) !important; }
+
+        /* Tier dropdown */
+        #tier-dropdown {
+            font-family: var(--h-font) !important;
+            background: rgba(8,16,26,0.98) !important;
+            border: 1px solid var(--h-border) !important;
+            border-top: 2px solid var(--h-border-hi) !important;
+        }
+
+        #tier-dropdown button {
+            font-family: var(--h-font) !important;
+            font-size: 11px !important;
+        }
+
+        /* Game-over screen */
+        #gameover-screen {
+            font-family: var(--h-font) !important;
+        }
+
+        #gameover-title {
+            font-family: var(--h-font) !important;
+        }
+    </style>
 </head>
 <body>
     <!-- Game Container - Only this moves and zooms -->
@@ -1119,18 +1964,16 @@
     <div class="ui-layer">
         <!-- Top Right HUD -->
         <div class="hud-panel top-right">
-            <div style="color: #e2e8f0; font-weight: 700; font-size: 16px; margin-bottom: 6px; letter-spacing:2px;">FASTER THAN LIGHT</div>
-            <div style="color: #4a7080; font-size: 11px; margin-bottom: 12px; letter-spacing:1px;">Seed <span id="hud-seed" style="color:#3a8880">--</span> &nbsp;&middot;&nbsp; Game <span id="hud-gameid" style="color:#3a8880">--</span></div>
-            <div style="color:#6d9ab3;font-size:10px;margin-bottom:10px;letter-spacing:1px;line-height:1.4;">
-                Conn <span id="hud-conn" style="color:#ff6f78;">OFFLINE</span>
-                &nbsp;&middot;&nbsp; Online <span id="hud-online" style="color:#7ae7ff;">0</span>
-                <br>
-                Endpoint <span id="hud-endpoint" style="color:#7ae7ff;">--</span>
+            <div class="hud-tr-title">Faster Than Light</div>
+            <div class="hud-tr-meta">Seed <span id="hud-seed">--</span> &nbsp;·&nbsp; Game <span id="hud-gameid">--</span></div>
+            <div class="hud-tr-conn">
+                <span class="hud-tr-conn-item">CONN <span id="hud-conn" style="color:var(--h-red)">OFFLINE</span></span>
+                <span class="hud-tr-conn-item">ONLINE <span id="hud-online" style="color:var(--h-fleet)">0</span></span>
+                <span class="hud-tr-conn-item">EP <span id="hud-endpoint" style="color:var(--h-label)">--</span></span>
             </div>
-            <div style="display: flex; gap: 8px; flex-wrap: wrap;">
-                <button onclick="goToMenu()" id="btn-menu">MENU</button>
-                <button onclick="toggleTierInfo()" id="btn-tier-info" style="background:#1a2a3a;color:#fbbf24;border-color:#3a5060;">TIERS</button>
-                <button onclick="endGame()" id="btn-end-game" style="background:#2a1520;color:#ff6666;border-color:#5a2030;">END GAME</button>
+            <div class="hud-tr-actions" style="justify-content:center;">
+                <button onclick="toggleTierInfo()" id="btn-tier-info">TIERS</button>
+                <button onclick="endGame()" id="btn-end-game">END GAME</button>
             </div>
         </div>
 
@@ -1167,37 +2010,52 @@
             <div id="fleet-upgrades" style="display:flex;flex-direction:column;gap:6px;"></div>
         </div>
 
-        <!-- Bottom Left Resources -->
+        <!-- Bottom Center Player Stats -->
+        <div class="hud-panel bottom-center">
+            <div class="hud-stats-row">
+                <div class="hud-stat-cell">
+                    <div class="hud-stat-label">Credits</div>
+                    <div class="hud-stat-val" style="color:var(--h-cr)">
+                        <span id="hud-credits">--</span>
+                        <span class="hud-stat-sub" id="hud-income" style="color:var(--h-cr-pos)">+0/s</span>
+                    </div>
+                </div>
+                <div class="hud-stat-div"></div>
+                <div class="hud-stat-cell">
+                    <div class="hud-stat-label">Fleet</div>
+                    <div class="hud-stat-val" id="hud-fleet-display" style="color:var(--h-fleet)">--</div>
+                </div>
+                <div class="hud-stat-div"></div>
+                <div class="hud-stat-cell">
+                    <div class="hud-stat-label">Research</div>
+                    <div class="hud-stat-val" style="color:var(--h-rp)"><span id="hud-rp">--</span></div>
+                </div>
+                <div class="hud-stat-div"></div>
+                <div class="hud-stat-cell">
+                    <div class="hud-stat-label">Tier</div>
+                    <div class="hud-stat-val" style="color:var(--h-tier)"><span id="hud-tier">--</span></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Bottom Left Settings -->
         <div class="hud-panel bottom-left">
-            <div style="color: #e2e8f0; font-size: 13px; font-weight: 600; margin-bottom: 6px; display:flex; gap:14px; align-items:baseline;">
-                <span>Cr <span id="hud-credits" style="color:#00e8cc">--</span> <span id="hud-income" style="color:#4aaa66;font-size:10px;font-weight:400">+0/s</span></span>
-                <span>RP <span id="hud-rp" style="color:#a78bfa">--</span></span>
-                <span>T<span id="hud-tier" style="color:#fbbf24">--</span></span>
-            </div>
-            <div style="color: #64748b; font-size: 11px; display:flex; gap:12px;">
-                <span>Tick <span id="hud-tick">--</span></span>
-                <span style="color:#f59e0b">FPS <span id="fps-display">--</span></span>
-                <button id="btn-sfx-toggle" onclick="window.toggleSfxMute?.()" style="padding:2px 8px;font-size:10px;min-width:54px;">SFX ON</button>
-                <button id="btn-music-toggle" onclick="window.toggleMusicMute?.()" style="padding:2px 8px;font-size:10px;min-width:70px;">MUSIC ON</button>
-            </div>
-            <div style="margin-top:6px;color:#7d95a6;font-size:10px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
-                <span style="display:flex;align-items:center;gap:5px;">
-                    SFX VOL
-                    <input id="sfx-volume" type="range" min="0" max="100" value="75" oninput="window.setSfxVolume?.(this.value)" style="width:80px;" />
-                    <span id="sfx-volume-value">75%</span>
-                </span>
-                <span style="display:flex;align-items:center;gap:5px;">
-                    MUSIC VOL
-                    <input id="music-volume" type="range" min="0" max="100" value="45" oninput="window.setMusicVolume?.(this.value)" style="width:80px;" />
-                    <span id="music-volume-value">45%</span>
-                </span>
+            <div class="hud-sys-row">
+                <span class="hud-sys-item">TK <span class="hud-sys-val" id="hud-tick">--</span></span>
+                <span class="hud-sys-item">FPS <span class="hud-sys-val" id="fps-display">--</span></span>
+                <span class="hud-sys-toggle" id="btn-sfx-toggle" onclick="window.toggleSfxMute?.()" title="Toggle SFX">FX</span>
+                <input id="sfx-volume" type="range" min="0" max="100" value="75" oninput="window.setSfxVolume?.(this.value)" style="width:40px;accent-color:var(--h-border-hi);" title="SFX Vol" />
+                <span class="hud-sys-toggle" id="btn-music-toggle" onclick="window.toggleMusicMute?.()" title="Toggle Music">♪</span>
+                <input id="music-volume" type="range" min="0" max="100" value="45" oninput="window.setMusicVolume?.(this.value)" style="width:40px;accent-color:var(--h-border-hi);" title="Music Vol" />
+                <span id="sfx-volume-value" style="display:none">75%</span>
+                <span id="music-volume-value" style="display:none">45%</span>
             </div>
         </div>
 
         <!-- Bottom Right Selection Info -->
-        <div class="hud-panel bottom-right" style="width: 240px;">
-            <div style="color: #e2e8f0; font-size: 12px; font-weight: 600; margin-bottom: 8px;" id="hud-selection">No selection</div>
-            <button onclick="stopShips()" style="width: 100%; padding: 10px; font-weight: 600;">[ STOP ]</button>
+        <div class="hud-panel bottom-right">
+            <div class="hud-sel-label">Selection</div>
+            <div class="hud-sel-val" id="hud-selection">No selection</div>
         </div>
     </div>
 
@@ -1283,13 +2141,13 @@
     </div>
 
 
-    <!-- Top Left Faction Status -->
-    <div class="hud-panel" id="faction-status" style="position:fixed; top:20px; left:20px; min-width:300px; pointer-events:auto; z-index:1000; display:none; padding:18px 20px 16px;">
-        <div style="color:#2a5060; font-size:11px; letter-spacing:1.5px; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center;">
+    <!-- Bottom Right Faction Status -->
+    <div class="hud-panel" id="faction-status" style="position:fixed; bottom:80px; right:20px; pointer-events:auto; z-index:1000; display:none;">
+        <div class="faction-hdr">
             <span>FACTIONS</span>
-            <span style="color:#1a3040; font-size:9px; letter-spacing:1px;">PLANETS · % · FLEETS</span>
+            <span class="faction-hdr-cols">PLN · PCT · FLEET</span>
         </div>
-        <div id="faction-rows" style="display:flex; flex-direction:column; gap:5px;"></div>
+        <div id="faction-rows" style="display:flex; flex-direction:column; gap:4px;"></div>
     </div>
 
     <!-- Win / Loss Screen -->
@@ -1309,56 +2167,82 @@
 
     <!-- Launch / Start Screen -->
     <div id="start-screen" style="position:fixed;top:0;left:0;width:100%;height:100%;background:transparent;z-index:9000;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:0;">
-        <div class="start-layout">
-            <div class="start-main">
+        <div class="start-wrap">
+            <!-- Amber phosphor header -->
+            <div class="start-header">
+                <div class="start-kicker">// galactic conquest protocol //</div>
+                <div class="start-header-rule"></div>
                 <div class="start-title">FASTER THAN LIGHT</div>
-                <div class="start-subtitle">Pick a mode and start playing</div>
-
-                <div style="display:flex;flex-direction:column;gap:12px;align-items:center;">
-                    <button onclick="window.gameApp?.launchNewGame()" style="width:260px;padding:14px 0;font-size:16px;letter-spacing:2px;background:linear-gradient(135deg,#00c8aa,#0098cc);box-shadow:0 4px 24px rgba(0,200,180,0.35);">Play Solo</button>
-                    <button id="start-dev-btn" onclick="window.gameApp?.launchDevSandbox()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;background:#2d184a;color:#d7b0ff;display:none;">Dev Solo (Sandbox)</button>
-                    <button onclick="window.openTutorial?.()" style="width:260px;padding:12px 0;font-size:13px;letter-spacing:2px;background:#1d3750;color:#9fe7ff;">How To Play</button>
-                    <input id="lobby-player-name" class="retro-input" placeholder="Your Name" maxlength="20" style="width:260px;" />
-                    <button onclick="window.hostLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;">Host PvP Lobby (6)</button>
-                    <div style="display:flex;gap:8px;align-items:center;width:260px;">
-                        <input id="lobby-code-input" class="retro-input" placeholder="Enter Lobby Code" maxlength="6" style="width:100%;" />
-                        <button onclick="window.pasteLobbyCode?.()" style="padding:10px 12px;font-size:12px;letter-spacing:1px;white-space:nowrap;">Paste</button>
-                    </div>
-                    <button onclick="window.joinLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;">Join Lobby</button>
-                    <button id="lobby-start-btn" onclick="window.startLobbyMatch?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;display:none;">Start PvP Match</button>
-                    <button onclick="window.leaveLobby?.()" style="width:260px;padding:12px 0;font-size:14px;letter-spacing:2px;background:#102030;color:#6ea7c5;">Leave Lobby</button>
-                    <button onclick="window.gameApp?.openLoadMenu()" style="width:260px;padding:14px 0;font-size:14px;letter-spacing:2px;background:#0f1e2e;color:#3a7090;border-color:#1a3a50;cursor:not-allowed;opacity:0.5;" disabled>Load Game</button>
-                </div>
-
-                <div style="margin-top:20px;display:flex;flex-direction:column;gap:10px;align-items:center;width:260px;">
-                    <div style="color:#5a7f96;font-size:10px;letter-spacing:1.5px;text-transform:uppercase;width:100%;text-align:center;">Audio</div>
-                    <div style="display:flex;align-items:center;gap:8px;width:100%;color:#7d95a6;font-size:11px;font-family:'Courier New',Consolas,monospace;">
-                        <span style="min-width:60px;">SFX</span>
-                        <input id="menu-sfx-volume" type="range" min="0" max="100" value="75" oninput="window.setSfxVolume?.(this.value)" style="flex:1;" />
-                        <span id="menu-sfx-value" style="min-width:32px;text-align:right;">75%</span>
-                    </div>
-                    <div style="display:flex;align-items:center;gap:8px;width:100%;color:#7d95a6;font-size:11px;font-family:'Courier New',Consolas,monospace;">
-                        <span style="min-width:60px;">MUSIC</span>
-                        <input id="menu-music-volume" type="range" min="0" max="100" value="45" oninput="window.setMusicVolume?.(this.value)" style="flex:1;" />
-                        <span id="menu-music-value" style="min-width:32px;text-align:right;">45%</span>
-                    </div>
-                </div>
-
-                <div class="start-help">
-                    WASD to pan · C/V or Scroll to zoom<br>
-                    Click to select · Right-click to move
-                </div>
+                <div class="start-header-rule"></div>
+                <div class="start-kicker">// select command mode to initialize //</div>
             </div>
 
-            <div class="lobby-box">
-                <div class="lobby-box-title">Lobby</div>
-                <div class="lobby-box-line" id="lobby-code-display">No active lobby</div>
-                <button id="lobby-copy-btn" class="lobby-copy-btn" onclick="window.copyLobbyCode?.()" style="display:none;">Copy Lobby Code</button>
-                <div class="lobby-box-line" id="lobby-status">Idle. Host or join a lobby.</div>
-                <div class="lobby-roster-wrap">
-                    <div class="lobby-roster-title">Players Joined</div>
-                    <div id="lobby-roster" class="lobby-roster-list"></div>
+            <!-- Two-column layout -->
+            <div class="start-content">
+
+                <!-- Command panel (left) -->
+                <div class="start-cmd-panel">
+                    <div class="start-cmd-label">// single player //</div>
+                    <div class="start-ai-row">
+                        <button onclick="window.gameApp?.launchNewGame()" class="start-btn-primary">▶ PLAY SOLO</button>
+                        <div class="start-ai-group">
+                            <div class="start-ai-label">AI</div>
+                            <div style="display:flex;gap:2px;" id="ai-count-selector">
+                                <button onclick="window.gameApp?.setAiCount(1)" data-ai="1" class="ai-count-btn">1</button>
+                                <button onclick="window.gameApp?.setAiCount(2)" data-ai="2" class="ai-count-btn">2</button>
+                                <button onclick="window.gameApp?.setAiCount(3)" data-ai="3" class="ai-count-btn">3</button>
+                                <button onclick="window.gameApp?.setAiCount(4)" data-ai="4" class="ai-count-btn">4</button>
+                                <button onclick="window.gameApp?.setAiCount(5)" data-ai="5" class="ai-count-btn ai-count-selected">5</button>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="start-dev-btn" onclick="window.gameApp?.launchDevSandbox()" style="display:none">▶ DEV SANDBOX</button>
+                    <button onclick="window.openTutorial?.()">▶ HOW TO PLAY</button>
+
+                    <div class="start-cmd-divider">── MULTIPLAYER ──</div>
+
+                    <input id="lobby-player-name" class="retro-input" placeholder="COMMANDER NAME" maxlength="20" />
+                    <button onclick="window.hostLobby?.()">▶ HOST PVP LOBBY &nbsp;(6)</button>
+                    <div class="start-code-row">
+                        <input id="lobby-code-input" class="retro-input" placeholder="LOBBY CODE" maxlength="6" />
+                        <button onclick="window.pasteLobbyCode?.()">PASTE</button>
+                    </div>
+                    <button onclick="window.joinLobby?.()">▶ JOIN LOBBY</button>
+                    <button id="lobby-start-btn" onclick="window.startLobbyMatch?.()" class="start-btn-launch" style="display:none">▶ START PVP MATCH</button>
+                    <button onclick="window.leaveLobby?.()" class="start-btn-muted">▶ LEAVE LOBBY</button>
+                    <button onclick="window.gameApp?.openLoadMenu()" class="start-btn-disabled" disabled>▶ LOAD GAME</button>
+
+                    <div class="start-cmd-divider">── AUDIO ──</div>
+
+                    <div class="start-audio-row">
+                        <span class="start-audio-label">SFX</span>
+                        <input id="menu-sfx-volume" type="range" min="0" max="100" value="75" oninput="window.setSfxVolume?.(this.value)" />
+                        <span id="menu-sfx-value" class="start-audio-val">75%</span>
+                    </div>
+                    <div class="start-audio-row">
+                        <span class="start-audio-label">MUSIC</span>
+                        <input id="menu-music-volume" type="range" min="0" max="100" value="45" oninput="window.setMusicVolume?.(this.value)" />
+                        <span id="menu-music-value" class="start-audio-val">45%</span>
+                    </div>
+
+                    <div class="start-help">
+                        WASD PAN · SCROLL ZOOM<br>
+                        CLICK SELECT · RMB MOVE
+                    </div>
                 </div>
+
+                <!-- Comms / Lobby panel (right) -->
+                <div class="lobby-box">
+                    <div class="lobby-box-title">// COMMS PANEL //</div>
+                    <div class="lobby-box-line" id="lobby-code-display">No active lobby</div>
+                    <button id="lobby-copy-btn" class="lobby-copy-btn" onclick="window.copyLobbyCode?.()" style="display:none;">Copy Lobby Code</button>
+                    <div class="lobby-box-line" id="lobby-status">Idle. Host or join a lobby.</div>
+                    <div class="lobby-roster-wrap">
+                        <div class="lobby-roster-title">Players Joined</div>
+                        <div id="lobby-roster" class="lobby-roster-list"></div>
+                    </div>
+                </div>
+
             </div>
         </div>
 
